@@ -453,24 +453,12 @@ InstallLetsEncrypt()
 		echo -e "\nEnabling HTTPS service\n"
 		sed -i '89d' $server
 		sed -i '92d' $server
-
-		echo -e "\nConfiguring HTTPS connector to use port 443\n"
-		sed -i 's/port="8443"/port="443"/' $server
-
+		
 		echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
 		sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
 
 		echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
 		sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_128_CBC_SHA/" ' $server
-
-		echo -e "\nConfiguring Tomcat to use AUTHBIND\n"
-		sed -i 's/#AUTHBIND=no/AUTHBIND=yes/' $tomcatdefault
-				
-		echo -e "\nConfiguring Tomcat ByUID AUTHBIND file\n"
-		echo '::/0,443' >>/etc/authbind/byuid/$tomcatuid
-		echo '0.0.0.0/0,443' >>/etc/authbind/byuid/$tomcatuid
-		chown tomcat7:tomcat7 /etc/authbind/byuid/$tomcatuid
-		chmod 700 /etc/authbind/byuid/$tomcatuid
 	else
 		echo -e "\n$server appears to be already configured for HTTPS. Skipping\n"
 	fi
