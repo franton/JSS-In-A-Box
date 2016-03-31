@@ -1,6 +1,7 @@
 # JSS-In-A-Box
 
 ## The (almost) complete Casper 9 JSS setup script for Ubuntu 14.04 LTS
+## (and now an untested RedHat version!)
 ## http://www.richard-purves.com/?p=136
 
 ### Introduction
