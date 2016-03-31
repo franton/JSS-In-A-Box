@@ -3,11 +3,11 @@
 ##########################################################################################
 #
 # JSS in a Box
-# (aka a script to initialise, create, configure and delete JSS instances on a RedHat 7 server.)
+# (aka a script to initialise, create, configure and delete JSS instances on an Ubuntu 14.04 server.)
 # (with apologies to Tom Bridge and https://github.com/tbridge/munki-in-a-box)
 #
 # The MIT License (MIT)
-# Copyright (c) 2015 <richard at richard-purves.com>
+# Copyright (c) 2015 <contact@richard-purves.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this
 # software and associated documentation files (the "Software"), to deal in the Software
@@ -81,9 +81,6 @@ export logfiles="/var/log/JSS"								# Location of ROOT and instance JSS log fi
 export tomcatloc="/usr/share/tomcat"						# Tomcat's installation path
 export server="$tomcatloc/conf/server.xml"					# Tomcat's server.xml based on install path
 export webapploc="$tomcatloc/webapps"						# Tomcat's webapps folder based on install path
-
-#export tomcatuid="`id -u tomcat`"							# User PID for Tomcat7
-export tomcatdefault="/etc/default/tomcat"					# Default config file for Tomcat7
 
 export DataBaseLoc="/WEB-INF/xml/"							# DataBase.xml location inside the JSS webapp
 export DataBaseXML="$rootwarloc/DataBase.xml.original"		# Location of the tmp DataBase.xml file we use for reference
@@ -1054,13 +1051,13 @@ UpgradeAllInstances() {
 			echo -e "\nModifying new instance: $instance to point to new log files"
 			if [[ $instance = "ROOT" ]];
 			then	
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
 			else
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File==$logfiles/$instance/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File==$logfiles/$instance/JAMFChangeManagement.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
 			fi
 
 			# Copy back the DataBase.xml file
@@ -1091,7 +1088,6 @@ IFS=$'\n'
 	clear
 
 # Start menu screen here
-
 	echo -e "\n----------------------------------------"
 	echo -e "\n              JSS in a Box"
 	echo -e "\n----------------------------------------"
