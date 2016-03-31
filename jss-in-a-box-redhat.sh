@@ -3,11 +3,11 @@
 ##########################################################################################
 #
 # JSS in a Box
-# (aka a script to initialise, create, configure and delete JSS instances on an Ubuntu 14.04 server.)
+# (aka a script to initialise, create, configure and delete JSS instances on a RedHat 7 server.)
 # (with apologies to Tom Bridge and https://github.com/tbridge/munki-in-a-box)
 #
 # The MIT License (MIT)
-# Copyright (c) 2015 <contact@richard-purves.com>
+# Copyright (c) 2015 <richard at richard-purves.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this
 # software and associated documentation files (the "Software"), to deal in the Software
@@ -155,7 +155,7 @@ InstallGit()
 
 	if [[ $git = "no" ]];
 	then
-		echo -e "\ngit not present. Installing\n"
+		echo -e "\ngit not present. Installing."
 		yum -q -y install git
 	else
 		echo -e "\ngit already present. Proceeding."
@@ -169,7 +169,7 @@ InstallWget()
 
 	if [[ $wget = "no" ]];
 	then
-		echo -e "\nwget not present. Installing\n"
+		echo -e "\nwget not present. Installing."
 		yum -q -y install wget
 	else
 		echo -e "\nwget already present. Proceeding."
@@ -279,7 +279,7 @@ InstallTomcat()
 
 	if [[ $tomcat = "no" ]];
 	then
-		echo -e "\nTomcat 7 not present. Installing\n"
+		echo -e "\nTomcat 7 not present. Installing."
 		yum -q -y install tomcat
 
 #		echo -e "\nSetting Tomcat to use more system ram\n"
@@ -288,7 +288,7 @@ InstallTomcat()
 		echo -e "\nEnabling Tomcat to start on system restart\n"
 		systemctl enable tomcat
 
-		echo -e "\nStarting Tomcat service\n"
+		echo -e "\nStarting Tomcat service."
 		systemctl start tomcat
 	else
 		echo -e "\nTomcat already present. Proceeding."
@@ -298,11 +298,11 @@ InstallTomcat()
 InstallMySQL()
 {
 	# Is MySQL 5.6 present?
-	mysql=$(yum -q list installed mysql-server &>/dev/null && echo "yes" || echo "no")
+	mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 
 	if [[ $mysql = "no" ]];
 	then
-		echo -e "\nMySQL 5.6 not present. Installing\n"
+		echo -e "\nMySQL 5.6 not present. Installing."
 
 		echo -e "\nAdding MySQL 5.6 to yum repo list\n"
 		wget http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm -P $homefolder
@@ -316,7 +316,7 @@ InstallMySQL()
 #		sed -i "s/.*max_allowed_packet.*/max_allowed_packet	   = 256M/" /etc/mysql/my.cnf
 #		sed -i '/#max_connections        = 100/c\max_connections         = 400' /etc/mysql/my.cnf
 
-		echo -e "\nEnabling MySQL to start on system restart\n"
+		echo -e "\nEnabling MySQL to start on system restart"
 		systemctl enable mysqld
 
 		echo -e "\nStarting MySQL 5.6"
@@ -335,7 +335,7 @@ SetupFirewall()
 	# It's time to harden the server firewall.
 	# For RedHat, we're using FireWallD.
 
-	echo -e "\nEnabling FirewallD service ...\n"
+	echo -e "\nEnabling FirewallD service."
 	systemctl start firewalld
 
 	echo -e "\nConfiguring FirewallD service\n"
@@ -357,7 +357,7 @@ SetupFirewall()
 	echo -e "\nEnabling FirewallD rule changes\n"
 	firewall-cmd --reload
 
-	echo -e "\nEnabling FirewallD to start on system reboot\n"
+	echo -e "\nEnabling FirewallD to start on system reboot"
 	systemctl enable firewalld
 }
 
@@ -553,7 +553,7 @@ CreateNewInstance()
 {
 	# Check for presence of Tomcat and MySQL before proceeding
 	tomcat=$(yum -q list installed tomcat &>/dev/null && echo "yes" || echo "no" )
-	mysql=$(yum -q list installed mysql-server &>/dev/null && echo "yes" || echo "no")
+	mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 	
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
@@ -671,7 +671,7 @@ DeleteInstance()
 {
 	# Check for presence of Tomcat and MySQL before proceeding
 	tomcat=$(yum -q list installed tomcat &>/dev/null && echo "yes" || echo "no" )
-	mysql=$(yum -q list installed mysql-server &>/dev/null && echo "yes" || echo "no")
+	mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
@@ -752,7 +752,7 @@ DeleteInstance()
 DumpDatabase()
 {
 	# Is MySQL 5.6 present?
-	mysql=$(yum -q list installed mysql-server &>/dev/null && echo "yes" || echo "no")
+	mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 
 	if [[ $mysql = "no" ]];
 	then
@@ -808,7 +808,7 @@ DumpDatabase()
 UploadDatabase()
 {
 	# Is MySQL 5.6 present?
-	mysql=$(yum -q list installed mysql-server &>/dev/null && echo "yes" || echo "no")
+	mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 
 	if [[ $mysql = "no" ]];
 	then
@@ -925,7 +925,7 @@ UpgradeInstance()
 {
 	# Check for presence of Tomcat and MySQL before proceeding
 	tomcat=$(yum -q list installed tomcat &>/dev/null && echo "yes" || echo "no" )
-	mysql=$(yum -q list installed mysql-server &>/dev/null && echo "yes" || echo "no")
+	mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
@@ -1007,7 +1007,7 @@ UpgradeInstance()
 UpgradeAllInstances() {
 	# Check for presence of Tomcat and MySQL before proceeding
 	tomcat=$(yum -q list installed tomcat &>/dev/null && echo "yes" || echo "no" )
-	mysql=$(yum -q list installed mysql-server &>/dev/null && echo "yes" || echo "no")
+	mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
