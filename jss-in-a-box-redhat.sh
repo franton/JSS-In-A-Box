@@ -141,6 +141,9 @@ IsROOTwarPresent()
 UpdateYUM()
 {
 	# Now let's start by making sure the yum is up to date
+	echo -e "\nInstalling Delta RPM functionality\n"
+	yum install -y deltarpm
+	
 	echo -e "\nUpdating yum repository ...\n"
 	yum -q -y update
 }
@@ -213,7 +216,7 @@ InstallFirewall()
 	if [[ $fwd = "no" ]];
 	then
 		echo -e "\nFirewallD not present. Installing.\n"
-		yum -q -y install iptables
+		yum -q -y install firewalld
 	else
 		echo -e "\nFirewallD already installed. Proceeding."
 	fi
@@ -254,7 +257,7 @@ InstallJava8()
 
 	if [[ $java8 = "no" ]];
 	then
-		echo -e "\OpenJDK 8 not present. Installing."
+		echo -e "\nOpenJDK 8 not present. Installing."
 		yum -q -y install java-1.8.0-openjdk
 		
 		echo -e "\nInstalling Java Cryptography Extension 8\n"
@@ -304,6 +307,7 @@ InstallMySQL()
 		echo -e "\nAdding MySQL 5.6 to yum repo list\n"
 		wget http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm -P $homefolder
 		rpm -ivh mysql-community-release-el7-5.noarch.rpm
+		rm $homefolder/mysql-community-release-el7-5.noarch.rpm
 		
 		echo -e "\nInstalling MySQL 5.6\n"
 		yum -q -y install mysql-server
@@ -313,9 +317,9 @@ InstallMySQL()
 #		sed -i '/#max_connections        = 100/c\max_connections         = 400' /etc/mysql/my.cnf
 
 		echo -e "\nEnabling MySQL to start on system restart\n"
-		system enable mysqld
+		systemctl enable mysqld
 
-		echo -e "\nStarting MySQL 5.6\n"
+		echo -e "\nStarting MySQL 5.6"
 		systemctl start mysqld
 		
 		echo -e "\nSecuring MySQL 5.6\n"
