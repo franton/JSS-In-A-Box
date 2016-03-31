@@ -78,12 +78,12 @@ export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
 export logfiles="/var/log/JSS"								# Location of ROOT and instance JSS log files
 
-export tomcatloc="/usr/share/tomcat7"						# Tomcat's installation path
+export tomcatloc="/usr/share/tomcat"						# Tomcat's installation path
 export server="$tomcatloc/conf/server.xml"					# Tomcat's server.xml based on install path
 export webapploc="$tomcatloc/webapps"						# Tomcat's webapps folder based on install path
 
-export tomcatuid="`id -u tomcat7`"							# User PID for Tomcat7
-export tomcatdefault="/etc/default/tomcat7"					# Default config file for Tomcat7
+#export tomcatuid="`id -u tomcat`"							# User PID for Tomcat7
+export tomcatdefault="/etc/default/tomcat"					# Default config file for Tomcat7
 
 export DataBaseLoc="/WEB-INF/xml/"							# DataBase.xml location inside the JSS webapp
 export DataBaseXML="$rootwarloc/DataBase.xml.original"		# Location of the tmp DataBase.xml file we use for reference
@@ -142,7 +142,7 @@ UpdateYUM()
 {
 	# Now let's start by making sure the yum is up to date
 	echo -e "\nUpdating yum repository ...\n"
-	yum update
+	yum -q -y update
 }
 
 InstallGit()
@@ -153,7 +153,7 @@ InstallGit()
 	if [[ $git = "no" ]];
 	then
 		echo -e "\ngit not present. Installing\n"
-		yum install git
+		yum -q -y install git
 	else
 		echo -e "\ngit already present. Proceeding."
 	fi
@@ -167,7 +167,7 @@ InstallWget()
 	if [[ $wget = "no" ]];
 	then
 		echo -e "\nwget not present. Installing\n"
-		yum install wget
+		yum -q -y install wget
 	else
 		echo -e "\nwget already present. Proceeding."
 	fi
@@ -181,7 +181,7 @@ InstallUnzip()
 	if [[ $unzip = "no" ]];
 	then
 		echo -e "\nunzip not present. Installing\n"
-		yum install unzip
+		yum -q -y install unzip
 	else
 		echo -e "\nunzip already present. Proceeding."
 	fi
@@ -213,7 +213,7 @@ InstallFirewall()
 	if [[ $fwd = "no" ]];
 	then
 		echo -e "\nFirewallD not present. Installing.\n"
-		yum install iptables
+		yum -q -y install iptables
 	else
 		echo -e "\nFirewallD already installed. Proceeding."
 	fi
@@ -227,7 +227,7 @@ InstallOpenSSH()
 	if [[ $openssh = "no" ]];
 	then
 		echo -e "\nopenssh not present. Installing.\n"
-		yum install openssh
+		yum -q -y install openssh
 	else
 		echo -e "\nopenssh already installed. Proceeding."
 	fi
@@ -241,7 +241,7 @@ InstallOpenVMTools()
 	if [[ $openvmtools = "no" ]];
 	then
 		echo -e "\nopen vm tools not present. Installing."
-		yum install open-vm-tools-deploypkg
+		yum -q -y install open-vm-tools-deploypkg
 	else
 		echo -e "\nopen vm tools already installed. Proceeding."
 	fi
@@ -255,7 +255,7 @@ InstallJava8()
 	if [[ $java8 = "no" ]];
 	then
 		echo -e "\OpenJDK 8 not present. Installing."
-		yum install java-1.8.0-openjdk
+		yum -q -y install java-1.8.0-openjdk
 		
 		echo -e "\nInstalling Java Cryptography Extension 8\n"
 		curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
@@ -277,7 +277,7 @@ InstallTomcat()
 	if [[ $tomcat = "no" ]];
 	then
 		echo -e "\nTomcat 7 not present. Installing\n"
-		yum install tomcat
+		yum -q -y install tomcat
 
 #		echo -e "\nSetting Tomcat to use more system ram\n"
 #		sed -i 's/$CATALINA_OPTS $JPDA_OPTS/$CATALINA_OPTS $JPDA_OPTS -server -Xms1024m -Xmx3052m -XX:MaxPermSize=128m/' /usr/share/tomcat/conf/tomcat.conf
@@ -306,7 +306,7 @@ InstallMySQL()
 		rpm -ivh mysql-community-release-el7-5.noarch.rpm
 		
 		echo -e "\nInstalling MySQL 5.6\n"
-		yum install mysql-server
+		yum -q -y install mysql-server
 		
 #		echo -e "\nConfiguring MySQL 5.6 ...\n"
 #		sed -i "s/.*max_allowed_packet.*/max_allowed_packet	   = 256M/" /etc/mysql/my.cnf
@@ -319,12 +319,7 @@ InstallMySQL()
 		systemctl start mysqld
 		
 		echo -e "\nSecuring MySQL 5.6\n"
-		mysql -u root << EOF
-		use mysql;
-		update user set password=PASSWORD("$mysqlpw") where User='root';
-		flush privileges;
-		quit
-		EOF
+		mysqladmin -u root password $mysqlpw
 		
 	else
 		echo -e "\nMySQL 5.6 already present. Proceeding."
@@ -368,7 +363,7 @@ SetupLogs()
 	if [ ! -d $logfiles ];
 	then
 		mkdir $logfiles
-		chown -R tomcat7:tomcat7 $logfiles
+		chown -R tomcat:tomcat $logfiles
 	fi
 }
 
@@ -408,7 +403,7 @@ InstallLetsEncrypt()
 
 	# Create a keystore folder for Tomcat with the correct permissions
 	mkdir $sslkeystorepath
-	chown tomcat7:tomcat7 $sslkeystorepath
+	chown tomcat:tomcat $sslkeystorepath
 	chmod 755 $sslkeystorepath
 
 	# Ok we got LetsEncrypt certificate files, let's make a PKCS12 combined key file from them.
@@ -627,13 +622,13 @@ CreateNewInstance()
 		touch $logfiles/JAMFChangeManagement.log
 		touch $logfiles/JAMFSoftwareServer.log
 		touch $logfiles/JSSAccess.log
-		chown -R tomcat7:tomcat7 $logfiles
+		chown -R tomcat:tomcat $logfiles
 	else
 		mkdir $logfiles/$instance
 		touch $logfiles/$instance/JAMFChangeManagement.log
 		touch $logfiles/$instance/JAMFSoftwareServer.log
 		touch $logfiles/$instance/JSSAccess.log
-		chown -R tomcat7:tomcat7 $logfiles/$instance
+		chown -R tomcat:tomcat $logfiles/$instance
 	fi
 
 	# Finally modify the log4j file inside the new instance to point to the right files/folders
@@ -733,9 +728,9 @@ DeleteInstance()
 		echo -e "\nDeleting Tomcat cache folder for instance: $instance"
 		if [[ $instance = "ROOT" ]];
 		then
-			rm -rf /var/lib/tomcat7/work/Catalina/localhost/_ 2>/dev/null
+			rm -rf $tomcatloc/work/Catalina/localhost/_ 2>/dev/null
 		else
-			rm -rf /var/lib/tomcat7/work/Catalina/localhost/$instance 2>/dev/null
+			rm -rf $tomcatloc/work/Catalina/localhost/$instance 2>/dev/null
 		fi
 		
 		# Restart tomcat
