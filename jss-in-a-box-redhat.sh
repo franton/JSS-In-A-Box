@@ -95,7 +95,8 @@ WhichDistAmI()
 	# This script is currently designed for Ubuntu only, so let's fail gracefully if we're running on anything else.
 
 	# Check for version
-	version=$( cat /etc/redhat-release | awk '{ print $4 }' | cut -c 1 )
+	version=$( cat /etc/redhat-release | awk '{ print $7 }' | cut -c 1 )
+
 
 	# Is this RedHat 7 server?
 	if [[ $version != "7" ]];
