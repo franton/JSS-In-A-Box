@@ -3,7 +3,7 @@
 ##########################################################################################
 #
 # JSS in a Box
-# (aka a script to initialise, create, configure and delete JSS instances on an Ubuntu 14.04 server.)
+# (aka a script to initialise, create, configure and delete JSS instances on a RedHat 7.x server.)
 # (with apologies to Tom Bridge and https://github.com/tbridge/munki-in-a-box)
 #
 # The MIT License (MIT)
