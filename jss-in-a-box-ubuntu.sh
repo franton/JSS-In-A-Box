@@ -616,8 +616,8 @@ CreateNewInstance()
 	sed -i "s/\(<DataBasePassword.*>\).*\(<\/DataBasePassword.*\)/\1$dbpass\2/" $DataBaseXML
 
 	# Wait 10 seconds to allow Tomcat to expand the .war file we copied over.
-	echo -e "\nWaiting 10 seconds to allow Tomcat to expand the .war file"
-	sleep 10
+	echo -e "\nWaiting 20 seconds to allow Tomcat to expand the .war file"
+	sleep 20
 
 	# Copy the new file over the top of the existing file.
 	echo -e "\nCopying the replacement DataBase.xml file into new instance: $instance"
