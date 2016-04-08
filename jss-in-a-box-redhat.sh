@@ -278,6 +278,7 @@ InstallTomcat()
 	then
 		echo -e "\nTomcat 7 not present. Installing."
 		yum -q -y install tomcat
+		yum -q -y install apr-devel 
 
 #		echo -e "\nSetting Tomcat to use more system ram\n"
 #		sed -i 's/$CATALINA_OPTS $JPDA_OPTS/$CATALINA_OPTS $JPDA_OPTS -server -Xms1024m -Xmx3052m -XX:MaxPermSize=128m/' /usr/share/tomcat/conf/tomcat.conf
@@ -608,9 +609,9 @@ CreateNewInstance()
 	sed -i "s/\(<DataBaseUser.*>\).*\(<\/DataBaseUser.*\)/\1$dbuser\2/" $DataBaseXML
 	sed -i "s/\(<DataBasePassword.*>\).*\(<\/DataBasePassword.*\)/\1$dbpass\2/" $DataBaseXML
 
-	# Wait 10 seconds to allow Tomcat to expand the .war file we copied over.
-	echo -e "\nWaiting 10 seconds to allow Tomcat to expand the .war file"
-	sleep 10
+	# Wait 20 seconds to allow Tomcat to expand the .war file we copied over.
+	echo -e "\nWaiting 20 seconds to allow Tomcat to expand the .war file"
+	sleep 20
 
 	# Copy the new file over the top of the existing file.
 	echo -e "\nCopying the replacement DataBase.xml file into new instance: $instance"
