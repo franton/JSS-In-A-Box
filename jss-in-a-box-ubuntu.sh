@@ -71,8 +71,8 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="1.0"
-currentverdate="4th January 2016"
+currentver="1.1"
+currentverdate="12th April 2016"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
