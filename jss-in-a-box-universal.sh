@@ -126,7 +126,7 @@ WhichDistAmI()
 	fi
 	
 	# Last check is to see if we got a bite or not
-	if [[ $OS != "Ubuntu" || $OS != "RedHat" ]];
+	if [[ $OS != "Ubuntu" && $OS != "RedHat" ]];
 	then
 		echo -e "\nScript requires either Ubuntu 14.04 LTS or RHEL 7.x. Exiting."
 		exit 1
