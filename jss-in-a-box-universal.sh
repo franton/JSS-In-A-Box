@@ -206,7 +206,7 @@ InstanceList()
 			echo -e "\nTomcat 7 not present. Please install before trying again."
 		else
 			echo -e "\nJSS Instance List\n-----------------\n"
-			find $ubtomcatloc/webapps/* -maxdepth 0 -type d | sed -r 's/^.+\///'
+			find $ubtomcatloc/webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///'
 		fi
 	fi
 	
@@ -218,7 +218,7 @@ InstanceList()
 			echo -e "\nTomcat 7 not present. Please install before trying again."
 		else
 			echo -e "\nJSS Instance List\n-----------------\n"
-			find $redhattomcatloc/webapps/* -maxdepth 0 -type d | sed -r 's/^.+\///'
+			find $redhattomcatloc/webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///'
 		fi
 	fi
 }
