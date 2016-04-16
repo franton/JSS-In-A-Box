@@ -990,6 +990,7 @@ ConfigureMemoryUsage()
 		export CATALINA_OPTS="$CATALINA_OPTS -Xss256k"
 		export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxGCPauseMillis=1500"
 		export CATALINA_OPTS="$CATALINA_OPTS -XX:GCTimeRatio=9"
+		export CATALINA_OPTS="$CATALINA_OPTS -Djava.awt.headless=true"
 		export CATALINA_OPTS="$CATALINA_OPTS -server"
 		export CATALINA_OPTS="$CATALINA_OPTS -XX:+DisableExplicitGC"
 
