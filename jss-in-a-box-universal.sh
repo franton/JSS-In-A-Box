@@ -48,6 +48,7 @@
 # Version 1.0 - 31st March 2016	   - Redhat compatible version. No new features so not a version increment.
 # Version 1.1 - 12th April 2016    - Update of SSL cipher list to bring into line with https://jamfnation.jamfsoftware.com/article.html?id=384
 # Version 2.0 - 14th April 2016    - Merged both scripts together. Now one big universal version with better OS checking.
+# Version 2.1 - 16th April 2016    - Now manages Tomcat, MySQL and Java memory settings. Calculated per current formulas on JAMF's CJA course.
 
 # Set up variables to be used here
 
@@ -80,6 +81,9 @@ export logfiles="/var/log/JSS"								# Location of ROOT and instance JSS log fi
 
 export ubtomcatloc="/var/lib/tomcat7"						# Tomcat's installation path(s)
 export redhattomcatloc="/usr/share/tomcat"
+
+export ubmycnfloc="/etc/mysql/my.cnf"						# MySQL's configuration file path(s)
+export rhmycnfloc="/etc/my.cnf"
 
 export DataBaseLoc="WEB-INF/xml"							# DataBase.xml location inside the JSS webapp
 export DataBaseXML="$rootwarloc/DataBase.xml.original"		# Location of the tmp DataBase.xml file we use for reference
@@ -167,6 +171,19 @@ TomcatService()
 	if [[ $OS = "RedHat" ]];
 	then
 		systemctl $1 tomcat
+	fi
+}
+
+MySQLService()
+{
+	if [[ $OS = "Ubuntu" ]];
+	then
+		service mysql $1
+	fi
+	
+	if [[ $OS = "RedHat" ]];
+	then
+		systemctl $1 mysql
 	fi
 }
 
@@ -581,9 +598,6 @@ InstallTomcat()
 			yum -q -y install tomcat
 			yum -q -y install apr-devel 
 
-	#		echo -e "\nSetting Tomcat to use more system ram\n"
-	#		sed -i 's/$CATALINA_OPTS $JPDA_OPTS/$CATALINA_OPTS $JPDA_OPTS -server -Xms1024m -Xmx3052m -XX:MaxPermSize=128m/' /usr/share/tomcat/conf/tomcat.conf
-
 			echo -e "\nEnabling Tomcat to start on system restart\n"
 			systemctl enable tomcat
 
@@ -608,10 +622,7 @@ InstallMySQL()
 			debconf-set-selections <<< "mysql-server-5.6 mysql-server/root_password password $mysqlpw"
 			debconf-set-selections <<< "mysql-server-5.6 mysql-server/root_password_again password $mysqlpw"
 			apt-get install -q -y mysql-server-5.6
-		
-			echo -e "\nConfiguring MySQL 5.6 ...\n"
-			sed -i "s/.*max_allowed_packet.*/max_allowed_packet	   = 256M/" /etc/mysql/my.cnf
-			sed -i '/#max_connections        = 100/c\max_connections         = 400' /etc/mysql/my.cnf
+
 		else
 			echo -e "\nMySQL 5.6 already present. Proceeding."
 		fi
@@ -633,10 +644,6 @@ InstallMySQL()
 		
 			echo -e "\nInstalling MySQL 5.6\n"
 			yum -q -y install mysql-server
-		
-	#		echo -e "\nConfiguring MySQL 5.6 ...\n"
-	#		sed -i "s/.*max_allowed_packet.*/max_allowed_packet	   = 256M/" /etc/mysql/my.cnf
-	#		sed -i '/#max_connections        = 100/c\max_connections         = 400' /etc/mysql/my.cnf
 
 			echo -e "\nEnabling MySQL to start on system restart"
 			systemctl enable mysqld
@@ -783,30 +790,15 @@ InstallLetsEncrypt()
 	# Clean up on aisle three!
 	rm $sslkeystorepath/fullchain_and_key.p12
 
-	# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
-	if [ ! -f "$server.backup" ];
-	then
-		# Configure the Tomcat server.xml. None of this stuff is pretty and could be better.
-		# Let's start by backing up the server.xml file in case things go wrong.
-		echo -e "\nBacking up $server file\n"
-		cp $server $server.backup
+	# Tomcat server.xml was previous prepared in the ConfigureMemoryUseage function.
+	# Now we disable HTTP and enable the HTTP connectors
+	echo -e "\nDisabling Tomcat HTTP connector\n"
+	sed -i '77i<!--' $server
+	sed -i '82i-->' $server
 
-		echo -e "\nDisabling HTTP service on Port 8080\n"
-		sed -i '72i<!--' $server
-		sed -i '77i-->' $server
-
-		echo -e "\nEnabling HTTPS service\n"
-		sed -i '89d' $server
-		sed -i '92d' $server
-		
-		echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
-		sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
-
-		echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
-		sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
-	else
-		echo -e "\n$server backup file detected. Skipping over.\n"
-	fi
+	echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+	sed -i '93d' $server
+	sed -i '87d' $server	
 
 	# We're done here. Start 'er up.
 	TomcatService start
@@ -888,6 +880,150 @@ UpdateLeSSLKeys()
 	fi
 }
 
+ConfigureMemoryUsage()
+{
+	# Derive the correct file locations from the current OS
+	if [[ $OS = "Ubuntu" ]];
+	then
+		webapps="$ubtomcatloc/webapps"
+		mycnfloc=$ubmycnfloc
+		tomcatconf=$ubtomcatloc
+	fi
+
+	if [[ $OS = "RedHat" ]];
+	then
+		webapps="$redhattomcatloc/webapps"
+		mycnfloc=$rhmycnfloc
+		tomcatconf=$redhattomcatloc
+	fi
+
+	# What's the default MaxPoolSize?
+	MaxPoolSize=$( cat $DataBaseXML | grep MaxPoolSize | sed 's/[^0-9]*//g' )
+	
+	# How many JSS instances do we currently have?
+	NoOfJSSinstances=$( find $webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///' | wc -l )
+
+	# MaxThreads = ( MaxPoolSize x 2.5 ) x no of webapps
+	MaxThreads=$( awk "BEGIN {print ($MaxPoolSize*2.5)*$NoOfJSSinstances}" )
+
+	# Derive the maximum number of SQL connections based on the above information
+	# Formula is: Maximum Pool Size x No of JSS instances plus one ;)
+	MySQLMaxConnections=$( awk "BEGIN {print ($MaxPoolSizeDefault*$NoOfJSSinstances)+1}" )
+	
+	# Work out the amount of system memory, convert to Mb and then subtract 512Mb
+	# That'll be what we'll allocate to Java as a maximum memory size.
+	mem=$( grep MemTotal /proc/meminfo | awk '{ print $2 }' )
+	memtotal=$( expr $mem / 1024 )
+	memtotal=$( expr $memtotal - 512 )
+	
+	# Well unless we get less than 1024Mb. JSS will not like running that low but you should consider boosting
+	# your RAM allocation in that event.
+	if [ $memtotal -lt 1024 ];
+	then
+		memtotal=1024
+	fi
+	
+	# Tomcat Section
+	
+	# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
+	if [ ! -f "$server.backup" ];
+	then
+		# Configure the Tomcat server.xml. None of this stuff is pretty and could be better.
+		# Let's start by backing up the server.xml file in case things go wrong.
+		
+		# THIS is all the one off config stuff.
+		echo -e "\nBacking up $server file\n"
+		cp $server $server.backup
+
+		echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
+		sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
+
+		echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
+		sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
+
+		echo -e "\nEnabling Tomcat shared executor\n"
+		sed -i '62d' $server
+		sed -i '59d' $server
+		
+		echo -e "\nDisabling Tomcat default HTTP Connector\n"
+		sed -i '70i<!--' $server
+		sed -i '75i-->' $server
+
+		echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+		sed -i '82d' $server
+		sed -i '77d' $server
+	fi
+
+	# Now for the settings we'll be periodically adjusting
+	echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads\n"
+	sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
+
+	echo -e "\nConfiguring HTTPS connector with current maximum threads\n"
+	sed -i 's/maxThreads="150" scheme="https" secure="true"/maxThreads="'"$MaxThreads"'" scheme="https" secure="true"/' $server
+
+	# MySQL
+
+	# Configure the max connections in my.cnf (as we worked it out earlier)
+	echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections\n"
+	sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
+
+	# Java
+	echo -e "\nConfiguring Java options\n"
+	
+	# Configure max ram available to Java from what we worked out earlier.
+	# If we don't have a setenv config file, generate one. Otherwise fix what we have.
+	if [ ! -f "$tomcatconf/setenv.sh" ];
+	then
+		echo -e "\nsetenv.sh file missing. Now creating it.\n"
+
+		cat <<'EOF' >> $tomcatconf/setenv.sh
+		#!/bin/sh
+
+		# setenv.sh config file - generated by jss-in-a-box
+		# https://github.com/franton/JSS-In-A-Box/
+
+		# This file based on the work found at: https://gist.github.com/terrancesnyder/986029
+
+		export CATALINA_OPTS="$CATALINA_OPTS -Xms1024m"
+		export CATALINA_OPTS="$CATALINA_OPTS -Xmx3052m"
+		export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxPermSize=512m"
+		export CATALINA_OPTS="$CATALINA_OPTS -Xss256k"
+		export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxGCPauseMillis=1500"
+		export CATALINA_OPTS="$CATALINA_OPTS -XX:GCTimeRatio=9"
+		export CATALINA_OPTS="$CATALINA_OPTS -server"
+		export CATALINA_OPTS="$CATALINA_OPTS -XX:+DisableExplicitGC"
+
+		# Check for application specific parameters at startup
+		if [ -r "$CATALINA_BASE/bin/appenv.sh" ]; then
+		  . "$CATALINA_BASE/bin/appenv.sh"
+		fi
+
+		echo "Using CATALINA_OPTS:"
+		for arg in $CATALINA_OPTS
+		do
+			echo ">> " $arg
+		done
+		echo ""
+
+		echo "Using JAVA_OPTS:"
+		for arg in $JAVA_OPTS
+		do
+			echo ">> " $arg
+		done
+		EOF
+
+		chmod 755 $tomcatconf/setenv.sh
+	fi
+
+	echo -e "\nConfiguring setenv.sh file to use $memtotal as max memory.\n"
+	sed -i 's/-Xmx.*/-Xmx'"$memtotal"'m"/' $tomcatconf/setenv.sh
+	
+	# Time to restart MySQL and Tomcat
+	TomcatService stop
+	MySQLService restart
+	TomcatService start	
+}
+
 InitialiseServer()
 {
 	# This is to make sure the appropriate services and software are installed and configured.
@@ -901,6 +1037,7 @@ InitialiseServer()
 	InstallJava8		# This includes the Cryptography Extensions
 	InstallTomcat
 	InstallMySQL
+	ConfigureMemoryUsage
 	SetupLogs
 	
 	if [[ $letsencrypt = TRUE ]];
@@ -1023,9 +1160,8 @@ CreateNewInstance()
 		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
 	fi
 
-	# Restart Tomcat 7
-	echo -e "\nRestarting Tomcat 7\n"
-	TomcatService restart
+	# Recalculate memory usage since we've made changes
+	ConfigureMemoryUsage
 }
 
 DeleteInstance()
@@ -1111,9 +1247,8 @@ DeleteInstance()
 			rm -rf $cacheloc/$instance 2>/dev/null
 		fi
 		
-		# Restart tomcat
-		echo -e "\nRestarting Tomcat service\n"
-		TomcatService restart
+		# Recalculate memory usage since we've made changes
+		ConfigureMemoryUsage
 		;;
 
 		*)
@@ -1229,9 +1364,8 @@ UploadDatabase()
 					mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "GRANT ALL ON $db.* TO $dbuser@$mysqlserveraddress IDENTIFIED BY '$dbpass';" 2>/dev/null
 				done
 
-				# Restart tomcat
-				echo -e "\nRestarting Tomcat service"
-				TomcatService restart
+				# Recalculate memory usage since we've made changes
+				ConfigureMemoryUsage
 				
 				return
 			;;
@@ -1281,9 +1415,8 @@ UploadDatabase()
 			echo -e "\nRe-establishing grants for database: $dbname"
 			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "GRANT ALL ON $db.* TO $dbuser@$mysqlserveraddress IDENTIFIED BY '$dbpass';"
 
-			# Restart tomcat
-			echo -e "\nRestarting Tomcat service"
-			TomcatService restart
+			# Recalculate memory usage since we've made changes
+			ConfigureMemoryUsage
 		;;
 		
 		*)
@@ -1475,6 +1608,8 @@ UpgradeAllInstances() {
 
 	esac
 }
+
+
 
 MainMenu()
 {
