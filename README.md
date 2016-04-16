@@ -18,8 +18,12 @@ This is the (almost) complete setup script for JAMF Software's JSS server. It wi
 9. Upgrade ALL JSS installs on the server
 10. (optional) Refresh Tomcat SSL certificate from [LetsEncrypt](http://letsencrypt.org)
 (The LetsEncrypt certificates are automatically renewed via a cron job. The same code can be invoked manually with this option)
+11. Will now optimally configure Tomcat and MySQL (locally only) for number of instances, available ram etc etc.
+(this one was HARD to do)
 
-The only thing it doesn't do, is to set up anything to do with load balancing. That can be done inside the JSS itself.
+The only things it doesn't do are:
+1) Set up anything to do with load balancing. That can be done inside the JSS itself.
+2) Any remote server configuration with the sole exception of modifying remote databases.
 
 ###### Oh, and NO SNEAKY using this on your CJA course! I've tipped off the JAMF instructors I know of!
 
@@ -49,7 +53,7 @@ You should, depending on server and internet speed have a fully functioning JSS 
 
 (Optional) Run the script with sudo ./jss-in-a-box.sh -h to get a help prompt.
 
-The instructional video below provides more details of operation.
+The instructional video below provides more details of operation. NOTE: This is of an earlier version but the info is still valid.
 
 ### Instructional Video
 
@@ -60,7 +64,6 @@ The instructional video below provides more details of operation.
 * JSS
 * Git (used purely for installing LetsEncrypt)
 * Unzip
-* HTOP (not present on Redhat version)
 * Uncomplicated Firewall (Ubuntu) / FirewallD (Redhat)
 * OpenSSL
 * OpenVMTools
@@ -69,7 +72,3 @@ The instructional video below provides more details of operation.
 * Apache Tomcat 7
 * MySQL Server 5.6
 * (optional) LetsEncrypt
-
-### Planned for future release
-
-* Expansion of the switches and the parameters that can be supplied via the command line.
