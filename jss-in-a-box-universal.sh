@@ -986,7 +986,7 @@ ConfigureMemoryUsage()
 			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
 
 			echo -e "\nAdding executor to HTTPS connector\n"
-			sed -i 's/<Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"/<Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true" executor="tomcatThreadPool"/' $server
+			sed -i 's/<Connector port="8443"/<Connector port="8443" executor="tomcatThreadPool"/' $server
 		fi
 		
 		# Now for the settings we'll be periodically adjusting
