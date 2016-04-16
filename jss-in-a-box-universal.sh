@@ -801,14 +801,29 @@ InstallLetsEncrypt()
 
 	# Tomcat server.xml was previous prepared in the ConfigureMemoryUseage function.
 	# Now we disable HTTP and enable the HTTP connectors
-	echo -e "\nDisabling Tomcat HTTP connector\n"
-	sed -i '77i<!--' $server
-	sed -i '82i-->' $server
 
-	echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
-	sed -i '93d' $server
-	sed -i '87d' $server	
+	if [[ $OS = "Ubuntu" ]];
+	then	
+		echo -e "\nDisabling Tomcat HTTP connector\n"
+		sed -i '77i<!--' $server
+		sed -i '82i-->' $server
 
+		echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+		sed -i '93d' $server
+		sed -i '87d' $server
+	fi
+	
+	if [[ $OS = "RedHat" ]];
+	then
+		echo -e "\nDisabling Tomcat HTTP connector\n"
+		sed -i '74i<!--' $server
+		sed -i '79i-->' $server
+
+		echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+		sed -i '91d' $server
+		sed -i '85d' $server
+	fi
+	
 	# We're done here. Start 'er up.
 	TomcatService start
 	
@@ -895,11 +910,10 @@ ConfigureMemoryUsage()
 	
 	if [[ $OS = "Ubuntu" ]];
 	then
-
 		# Derive the correct file locations from the current OS
 		webapps="$ubtomcatloc/webapps"
 		mycnfloc=$ubmycnfloc
-		tomcatconf=$ubtomcatloc
+		tomcatconf="/usr/share/tomcat7/bin"
 		server="$ubtomcatloc/conf/server.xml"
 		
 		# Now we work out the correct memory and connection settings
@@ -936,6 +950,8 @@ ConfigureMemoryUsage()
 			memtotal=1024
 		fi
 
+		echo -e "\nMaximum memory to allocate to Tomcat is: $memtotal Mb"
+
 		# Tomcat Section
 		
 		# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
@@ -966,11 +982,11 @@ ConfigureMemoryUsage()
 			sed -i '82d' $server
 			sed -i '77d' $server
 			
-#			echo -e "\nAdding Max Threads to HTTP connector\n"
-#			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
+			echo -e "\nAdding Max Threads to HTTP connector\n"
+			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
 
-#			echo -e "\nAdding executor to HTTPS connector\n"
-#			sed -i 's/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol"/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol" executor="tomcatThreadPool"/' $server
+			echo -e "\nAdding executor to HTTPS connector\n"
+			sed -i 's/<Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"/<Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true" executor="tomcatThreadPool"/' $server
 		fi
 		
 		# Now for the settings we'll be periodically adjusting
@@ -982,9 +998,19 @@ ConfigureMemoryUsage()
 
 		# MySQL
 
-		# Configure the max connections in my.cnf (as we worked it out earlier)
-		echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections\n"
-		sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
+		if [ ! -f "$mycnfloc.backup" ];
+		then
+			# Backup the my.cnf file
+			echo -e "\nBacking up $server file\n"
+			cp $mycnfloc $mycnfloc.backup
+			
+			# Configure the max connections in my.cnf (as we worked it out earlier) and remove the hashtag
+			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections\n"
+			sed -i 's/.max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
+		else
+			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections\n"
+			sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc		
+		fi
 
 		# Java
 		
