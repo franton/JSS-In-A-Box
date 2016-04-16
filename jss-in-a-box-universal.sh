@@ -106,7 +106,7 @@ WhichDistAmI()
 			;;
 
 			*)
-				echo -e "\nScript requires Ubuntu 14.04 LTS. Exiting."
+				echo -e "Script requires Ubuntu 14.04 LTS. Exiting."
 				exit 1
 			;;
 		esac
@@ -120,10 +120,10 @@ WhichDistAmI()
 		# Is this RedHat 7 server?
 		if [[ $version != "7" ]];
 		then
-			echo -e "\nScript requires RedHat 7.x. Exiting."
+			echo -e "Script requires RedHat 7.x. Exiting."
 			exit 1
 		else
-			echo -e "\nRedhat 7 detected. Proceeding."
+			echo -e "Redhat 7 detected. Proceeding."
 			OS="RedHat"
 			export OS
 		fi
@@ -132,7 +132,7 @@ WhichDistAmI()
 	# Last check is to see if we got a bite or not
 	if [[ $OS != "Ubuntu" && $OS != "RedHat" ]];
 	then
-		echo -e "\nScript requires either Ubuntu 14.04 LTS or RHEL 7.x. Exiting."
+		echo -e "Script requires either Ubuntu 14.04 LTS or RHEL 7.x. Exiting."
 		exit 1
 	fi
 }
@@ -142,10 +142,10 @@ AmIroot()
 	# Check for root, quit if not present with a warning.
 	if [[ "$(id -u)" != "0" ]];
 	then
-		echo -e "\nScript needs to be run as root."
+		echo -e "Script needs to be run as root."
 		exit 1
 	else
-		echo -e "\nScript running as root. Proceeding."
+		echo -e "Script running as root. Proceeding."
 	fi
 }
 
@@ -277,8 +277,17 @@ UpdatePkgMgr()
 	
 	if [[ $OS = "RedHat" ]];
 	then
-		echo -e "\nInstalling Delta RPM functionality\n"
-		yum install -y deltarpm
+	
+	# Is the delta RPM module installed?
+	deltarpm=$(yum -q list installed deltarpm &>/dev/null && echo "yes" || echo "no")
+
+		if [[ $git = "no" ]];
+		then
+			echo -e "\nInstalling Delta RPM functionality\n"
+			yum install -y deltarpm
+		else
+			echo -e "\nDelta RPM already present. Proceeding."
+		fi
 	
 		echo -e "\nUpdating yum repository ...\n"
 		yum -q -y update
@@ -649,7 +658,7 @@ InstallMySQL()
 			systemctl enable mysqld
 
 			echo -e "\nStarting MySQL 5.6"
-			systemctl start mysqld
+			MySQLService start
 		
 			echo -e "\nSecuring MySQL 5.6\n"
 			mysqladmin -u root password $mysqlpw
@@ -882,91 +891,94 @@ UpdateLeSSLKeys()
 
 ConfigureMemoryUsage()
 {
-	# Derive the correct file locations from the current OS
+	# Split into two sections due to OS distribution differences.
+	
 	if [[ $OS = "Ubuntu" ]];
 	then
+
+		# Derive the correct file locations from the current OS
 		webapps="$ubtomcatloc/webapps"
 		mycnfloc=$ubmycnfloc
 		tomcatconf=$ubtomcatloc
 		server="$ubtomcatloc/conf/server.xml"
-	fi
-
-	if [[ $OS = "RedHat" ]];
-	then
-		webapps="$redhattomcatloc/webapps"
-		mycnfloc=$rhmycnfloc
-		tomcatconf="$redhattomcatloc/conf/tomcat7.conf"
-		server="$redhattomcatloc/conf/server.xml"
-	fi
-
-	# What's the default MaxPoolSize?
-	MaxPoolSize=$( cat $DataBaseXML | grep MaxPoolSize | sed 's/[^0-9]*//g' )
-	
-	# How many JSS instances do we currently have?
-	NoOfJSSinstances=$( find $webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///' | wc -l )
-
-	# MaxThreads = ( MaxPoolSize x 2.5 ) x no of webapps
-	MaxThreads=$( awk "BEGIN {print ($MaxPoolSize*2.5)*$NoOfJSSinstances}" )
-
-	# Derive the maximum number of SQL connections based on the above information
-	# Formula is: Maximum Pool Size x No of JSS instances plus one ;)
-	MySQLMaxConnections=$( awk "BEGIN {print ($MaxPoolSizeDefault*$NoOfJSSinstances)+1}" )
-	
-	# Work out the amount of system memory, convert to Mb and then subtract 512Mb
-	# That'll be what we'll allocate to Java as a maximum memory size.
-	mem=$( grep MemTotal /proc/meminfo | awk '{ print $2 }' )
-	memtotal=$( expr $mem / 1024 )
-	memtotal=$( expr $memtotal - 256 )
-	
-	# Well unless we get less than 1024Mb. JSS will not like running that low but you should consider boosting
-	# your RAM allocation in that event.
-	if [ $memtotal -lt 1024 ];
-	then
-		memtotal=1024
-	fi
-	
-	# Tomcat Section
-	
-	# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
-	if [ ! -f "$server.backup" ];
-	then
-		# Configure the Tomcat server.xml. None of this stuff is pretty and could be better.
-		# Let's start by backing up the server.xml file in case things go wrong.
 		
-		# THIS is all the one off config stuff.
-		echo -e "\nBacking up $server file\n"
-		cp $server $server.backup
-
-		echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
-		sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
-
-		echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
-		sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
-
-		echo -e "\nEnabling Tomcat shared executor\n"
-		sed -i '62d' $server
-		sed -i '59d' $server
-		
-		echo -e "\nDisabling Tomcat default HTTP Connector\n"
-		sed -i '70i<!--' $server
-		sed -i '75i-->' $server
-
-		echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
-		sed -i '82d' $server
-		sed -i '77d' $server
-	fi
-
-	# Now for the settings we'll be periodically adjusting
-	echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads\n"
-	sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
-
-	echo -e "\nConfiguring HTTPS connector with current maximum threads\n"
-	sed -i 's/maxThreads="150" scheme="https" secure="true"/maxThreads="'"$MaxThreads"'" scheme="https" secure="true"/' $server
-
-	# Now things get interesting as files are changed/missing/different between Ubuntu and RHEL
+		# Now we work out the correct memory and connection settings
+		# What's the default MaxPoolSize?
+		MaxPoolSize=$( cat $DataBaseXML | grep MaxPoolSize | sed 's/[^0-9]*//g' )
+		echo -e "\nMax Pool Size : $MaxPoolSize"
 	
-	if [[ $OS = "Ubuntu" ]];
-	then
+		# How many JSS instances do we currently have? We need at least one, so check for that too.
+		NoOfJSSinstances=$( find $webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///' | wc -l )
+		if [ $NoOfJSSinstances -lt 1 ];
+		then
+			NoOfJSSinstances=1
+		fi
+		echo -e "\nNo of current JSS instances: $NoOfJSSinstances"
+
+		# MaxThreads = ( MaxPoolSize x 2.5 ) x no of webapps
+		MaxThreads=$( awk "BEGIN {print ($MaxPoolSize*2.5)*$NoOfJSSinstances}" )
+		echo -e "\nOptimal Max Threads calculated to be: $MaxThreads"
+
+		# Derive the maximum number of SQL connections based on the above information
+		# Formula is: Maximum Pool Size x No of JSS instances plus one ;)
+		MySQLMaxConnections=$( awk "BEGIN {print ($MaxPoolSize*$NoOfJSSinstances)+1}" )
+	
+		# Work out the amount of system memory, convert to Mb and then subtract 256Mb
+		# That'll be what we'll allocate to Java as a maximum memory size. OS needs room too!
+		mem=$( grep MemTotal /proc/meminfo | awk '{ print $2 }' )
+		memtotal=$( expr $mem / 1024 )
+		memtotal=$( expr $memtotal - 256 )
+	
+		# Well unless we get less than 1024Mb, set it to 1024. JSS will not like running that low so you should consider boosting
+		# your RAM allocation. I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
+		if [ $memtotal -lt 1024 ];
+		then
+			memtotal=1024
+		fi
+
+		# Tomcat Section
+		
+		# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
+		if [ ! -f "$server.backup" ];
+		then
+			# Configure the Tomcat server.xml. None of this stuff is pretty and could be better. Improvements welcome.
+			# Let's start by backing up the server.xml file in case things go wrong.
+		
+			# THIS secton is all the one off config stuff.
+			echo -e "\nBacking up $server file\n"
+			cp $server $server.backup
+
+			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
+			sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
+
+			echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
+			sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
+
+			echo -e "\nEnabling Tomcat shared executor\n"
+			sed -i '62d' $server
+			sed -i '59d' $server
+		
+			echo -e "\nDisabling Tomcat default HTTP Connector\n"
+			sed -i '70i<!--' $server
+			sed -i '75i-->' $server
+
+			echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+			sed -i '82d' $server
+			sed -i '77d' $server
+			
+#			echo -e "\nAdding Max Threads to HTTP connector\n"
+#			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
+
+#			echo -e "\nAdding executor to HTTPS connector\n"
+#			sed -i 's/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol"/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol" executor="tomcatThreadPool"/' $server
+		fi
+		
+		# Now for the settings we'll be periodically adjusting
+		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads\n"
+		sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
+
+		echo -e "\nConfiguring HTTPS connector with current maximum threads\n"
+		sed -i 's/maxThreads="150" scheme="https" secure="true"/maxThreads="'"$MaxThreads"'" scheme="https" secure="true"/' $server
 
 		# MySQL
 
@@ -975,13 +987,16 @@ ConfigureMemoryUsage()
 		sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
 
 		# Java
-		echo -e "\nConfiguring Java options\n"
+		
+		echo -e "\nConfiguring Tomcat Java options\n"
 	
 		# Configure max ram available to Java from what we worked out earlier.
 		# If we don't have a setenv config file, generate one. Otherwise fix what we have.
 		if [ ! -f "$tomcatconf/setenv.sh" ];
 		then
 			echo -e "\nsetenv.sh file missing. Now creating it.\n"
+
+		# I have to not use the code formatting here or this file isn't written out properly.
 
 cat <<'EOF' >> $tomcatconf/setenv.sh
 #!/bin/sh
@@ -1019,9 +1034,8 @@ do
 	echo ">> " $arg
 done
 EOF
-
-			chmod 755 $tomcatconf/setenv.sh
-		fi
+				chmod 755 $tomcatconf/setenv.sh
+			fi
 
 		echo -e "\nConfiguring setenv.sh file to use $memtotal as max memory.\n"
 		sed -i 's/-Xmx.*/-Xmx'"$memtotal"'m"/' $tomcatconf/setenv.sh
@@ -1030,8 +1044,91 @@ EOF
 
 	if [[ $OS = "RedHat" ]];
 	then
+		webapps="$redhattomcatloc/webapps"
+		mycnfloc=$rhmycnfloc
+		tomcatconf="$redhattomcatloc/conf/tomcat.conf"
+		server="$redhattomcatloc/conf/server.xml"
+
+		# Now we work out the correct memory and connection settings
+		# What's the default MaxPoolSize?
+		MaxPoolSize=$( cat $DataBaseXML | grep MaxPoolSize | sed 's/[^0-9]*//g' )
+		echo -e "\nMax Pool Size : $MaxPoolSize"
 	
-	# MySQL first.
+		# How many JSS instances do we currently have? We need at least one, so check for that too.
+		NoOfJSSinstances=$( find $webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///' | wc -l )
+		if [ $NoOfJSSinstances -lt 1 ];
+		then
+			NoOfJSSinstances=1
+		fi
+		echo -e "\nNo of current JSS instances: $NoOfJSSinstances"
+
+		# MaxThreads = ( MaxPoolSize x 2.5 ) x no of webapps
+		MaxThreads=$( awk "BEGIN {print ($MaxPoolSize*2.5)*$NoOfJSSinstances}" )
+		echo -e "\nOptimal Max Threads calculated to be: $MaxThreads"
+
+		# Derive the maximum number of SQL connections based on the above information
+		# Formula is: Maximum Pool Size x No of JSS instances plus one ;)
+		MySQLMaxConnections=$( awk "BEGIN {print ($MaxPoolSize*$NoOfJSSinstances)+1}" )
+	
+		# Work out the amount of system memory, convert to Mb and then subtract 256Mb
+		# That'll be what we'll allocate to Java as a maximum memory size. OS needs room too!
+		mem=$( grep MemTotal /proc/meminfo | awk '{ print $2 }' )
+		memtotal=$( expr $mem / 1024 )
+		memtotal=$( expr $memtotal - 256 )
+	
+		# Well unless we get less than 1024Mb, set it to 1024. JSS will not like running that low so you should consider boosting
+		# your RAM allocation. I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
+		if [ $memtotal -lt 1024 ];
+		then
+			memtotal=1024
+		fi
+	
+		# Tomcat section
+		
+		# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
+		if [ ! -f "$server.backup" ];
+		then
+			# Configure the Tomcat server.xml. None of this stuff is pretty and could be better. Improvements welcome.
+			# Let's start by backing up the server.xml file in case things go wrong.
+		
+			# THIS secton is all the one off config stuff.
+			echo -e "\nBacking up $server file\n"
+			cp $server $server.backup
+
+			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
+			sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
+
+			echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
+			sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
+
+			echo -e "\nEnabling Tomcat shared executor\n"
+			sed -i '60d' $server
+			sed -i '57d' $server
+		
+			echo -e "\nDisabling Tomcat default HTTP Connector\n"
+			sed -i '68i<!--' $server
+			sed -i '72i-->' $server
+
+			echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+			sed -i '79d' $server
+			sed -i '74d' $server
+			
+			echo -e "\nAdding Max Threads to HTTP connector\n"
+			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
+
+			echo -e "\nAdding executor to HTTPS connector\n"
+			sed -i 's/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol"/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol" executor="tomcatThreadPool"/' $server
+			
+		fi
+		
+		# Now for the settings we'll be periodically adjusting
+		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads\n"
+		sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
+
+		echo -e "\nConfiguring HTTPS connector with current maximum threads\n"
+		sed -i 's/maxThreads="150" SSLEnabled="true"/maxThreads="'"$MaxThreads"'" SSLEnabled="true"/' $server
+		
+		# MySQL section
 	
 		if [ ! -f "$mycnfloc.backup" ];
 		then
@@ -1041,12 +1138,11 @@ EOF
 			echo "max_connections = $MySQLMaxConnections" >> $mycnfloc
 		else
 			# If the backup exists, we've been here before. Alter the existing file instead.
-			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections\n"
+			echo -e "\nConfiguring MySQL max connections to: $MySQLMaxConnections\n"
 			sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
 		fi
 
-	# Now Tomcat Java settings. RHEL Tomcat doesn't use a setenv.sh file so we have to append/work with
-	# the tomcat.conf file instead.
+		# Now Tomcat Java settings. RHEL Tomcat uses a tomcat.conf file instead of a setenv.sh script.
 
 		if [ ! -f "$tomcatconf.backup" ];
 		then
@@ -1061,7 +1157,6 @@ EOF
 			# Backup exists. Alter the file instead.
 			sed -i 's/-Xmx..../-Xmx'"$memtotal"'/' $tomcatconf
 		fi
-
 	fi
 	
 	# Time to restart MySQL and Tomcat
@@ -1129,6 +1224,9 @@ CreateNewInstance()
 		return 1
 	fi
 	
+	# Stop tomcat service
+	TomcatService stop
+	
 	# Prep variables for future use based on current OS
 	SetupTomcatUser
 	
@@ -1155,10 +1253,9 @@ CreateNewInstance()
 	# then move that to the webapps folder.
 	if [[ $instance = "ROOT" ]];
 	then
-		cp $rootwarloc/ROOT.war $webapploc
+		cp $rootwarloc/ROOT.war $webapploc && unzip -oq $webapploc/ROOT.war -d $webapploc/ROOT
 	else
-		cp $rootwarloc/ROOT.war $rootwarloc/$instance.war
-		mv $rootwarloc/$instance.war $webapploc
+		cp $rootwarloc/ROOT.war $webapploc/$instance.war && unzip -oq $webapploc/$instance.war -d $webapploc/$instance
 	fi
 
 	# Create a specific DataBase.xml file for this new instance
@@ -1168,9 +1265,14 @@ CreateNewInstance()
 	sed -i "s/\(<DataBaseUser.*>\).*\(<\/DataBaseUser.*\)/\1$dbuser\2/" $DataBaseXML
 	sed -i "s/\(<DataBasePassword.*>\).*\(<\/DataBasePassword.*\)/\1$dbpass\2/" $DataBaseXML
 
-	# Wait 20 seconds to allow Tomcat to expand the .war file we copied over.
-	echo -e "\nWaiting 20 seconds to allow Tomcat to expand the .war file"
-	sleep 20
+	# Wait for allow Tomcat to expand the .war file we copied over.
+	echo -e "\nWaiting for .war file to be expanded"
+	while [ ! -d "$webapploc/$instance" ]
+	do
+	   echo -e "Awaiting Tomcat to expand instance: $instance"
+	   sleep 3
+	done
+	sleep 5
 
 	# Copy the new file over the top of the existing file.
 	echo -e "\nCopying the replacement DataBase.xml file into new instance: $instance"
@@ -1535,6 +1637,15 @@ UpgradeInstance()
 			# Rename, copy and expand the replacement tomcat ROOT.war file
 			echo -e "\nReplacing Tomcat instance: $instance"
 			cp $rootwarloc/ROOT.war $webapploc/$instance.war && unzip -oq $webapploc/$instance.war -d $webapploc/$instance
+			
+			# Wait for allow Tomcat to expand the .war file we copied over.
+			echo -e "\nWaiting for .war file to be expanded"
+			while [ ! -d "$webapploc/$instance" ]
+			do
+			   echo -e "Awaiting Tomcat to expand instance: $instance"
+			   sleep 3
+			done
+			sleep 5
 
 			# Modify the log4j file inside the new instance to point to the right files/folders
 			echo -e "\nModifying new instance: $instance to point to new log files"
@@ -1621,6 +1732,14 @@ UpgradeAllInstances() {
 			# Rename, copy and expand the replacement tomcat ROOT.war file
 			echo -e "Replacing Tomcat instance: ${webapps[i]}"
 			cp $rootwarloc/ROOT.war $webapploc/${webapps[i]}.war && unzip -oq $webapploc/${webapps[i]}.war -d $webapploc/${webapps[i]}
+			
+			# Wait for allow Tomcat to expand the .war file we copied over.
+			echo -e "\nWaiting for the .war file to be expanded"
+			while [ ! -d '$rootwarloc/$instance' ]
+			do
+			   sleep 1
+			done
+			sleep 5
 
 			# Modify the log4j file inside the new instance to point to the right files/folders
 			echo -e "\nModifying new instance: $instance to point to new log files"
