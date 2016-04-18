@@ -49,6 +49,7 @@
 # Version 1.1 - 12th April 2016    - Update of SSL cipher list to bring into line with https://jamfnation.jamfsoftware.com/article.html?id=384
 # Version 2.0 - 14th April 2016    - Merged both scripts together. Now one big universal version with better OS checking.
 # Version 2.1 - 16th April 2016    - Now manages Tomcat, MySQL and Java memory settings. Calculated per current formulas on JAMF's CJA course.
+# Version 2.2 - 18th April 2016    - Optional redirection of HTTPS traffic to port 443 from 8443 via firewall rules.
 
 # Set up variables to be used here
 
@@ -58,6 +59,7 @@ export useract="richardpurves"								# Server admin username. Used for home loc
 
 export letsencrypt="FALSE"									# Set this to TRUE if you are going to use LetsEncrypt as your HTTPS Certificate Authority.
 export sslTESTMODE="TRUE"									# Set this to FALSE when you're confident it's generating proper certs for you
+export httpsredirect="FALSE"								# Set this to TRUE if you want your JSS to appear to be on port 443 using HTTPS
 export ssldomain="jssinabox.westeurope.cloudapp.azure.com"	# Domain name for the SSL certificates
 export sslemail="richard at richard-purves.com"				# E-mail address for the SSL CA
 export sslkeypass="changeit"								# Password to the keystore. Default is "changeit". Please change it!
@@ -690,6 +692,21 @@ SetupFirewall()
 		ufw allow 5223			# Apple Push Notification Service
 		ufw allow 5228			# Google Cloud Messaging
 		ufw --force enable		# Turns on the firewall. May cause ssh disruption in the process.
+		
+		# Is https redirect enabled? If so, we have to set up some firewall rules to direct 8443 to 443.
+		# We're going to use firewall port redirection as the alternative using authbind has proven unreliable.
+		# And we have to add the rules manually before totally restarting the service too. Fun.
+		if [[ $httpsredirect = "TRUE" ]];
+		then
+			# Insert the following lines into the before firewall rules file.
+			sed -i "10i # Port 443 to 8443 redirect rules - added by JSS in a Box" /etc/ufw/before.rules
+			sed -i "11i *nat" /etc/ufw/before.rules
+			sed -i "12i :PREROUTING ACCEPT [0:0]" /etc/ufw/before.rules
+			sed -i "13i -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443" /etc/ufw/before.rules
+			
+			# Restart the entire UFW service or this won't work until reboot.
+			service ufw restart
+		fi
 	fi
 
 	if [[ $OS = "RedHat" ]];
@@ -719,6 +736,13 @@ SetupFirewall()
 
 		echo -e "\nEnabling FirewallD to start on system reboot"
 		systemctl enable firewalld
+		
+		# Is https redirect enabled? If so, we have to set up some firewall rules to direct 443 to 8443.
+		# A little nicer than UFW, as there are commands to do this instead of directly manipulating firewall rules.
+		if [[ $httpsredirect = "TRUE" ]];
+		then
+			firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=8443
+		fi	
 	fi
 }
 
