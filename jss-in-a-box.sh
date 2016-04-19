@@ -588,9 +588,6 @@ InstallTomcat()
 			echo -e "\nSetting Tomcat to use Oracle Java 8 in /etc/default/tomcat7 \n"
 			sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-8-oracle|" /etc/default/tomcat7	
 
-			echo -e "\nSetting Tomcat to use more system ram\n"
-			sed -i 's/$CATALINA_OPTS $JPDA_OPTS/$CATALINA_OPTS $JPDA_OPTS -server -Xms1024m -Xmx3052m -XX:MaxPermSize=128m/' /usr/share/tomcat7/bin/catalina.sh
-
 			echo -e "\nStarting Tomcat service\n"
 			TomcatService start
 		else
