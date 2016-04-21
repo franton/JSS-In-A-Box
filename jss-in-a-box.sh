@@ -50,6 +50,7 @@
 # Version 2.0 - 14th April 2016    - Merged both scripts together. Now one big universal version with better OS checking.
 # Version 2.1 - 16th April 2016    - Now manages Tomcat, MySQL and Java memory settings. Calculated per current formulas on JAMF's CJA course.
 # Version 2.2 - 18th April 2016    - Optional redirection of HTTPS traffic to port 443 from 8443 via firewall rules.
+# Version 2.3 - 21st April 2016    - Tomcat really doesn't like running with less than 1Gb ram, so we check for 1.5Gb available. Quit if not available.
 
 # Set up variables to be used here
 
@@ -74,8 +75,8 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="2.1"
-currentverdate="16th April 2016"
+currentver="2.3"
+currentverdate="21st April 2016"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -964,11 +965,15 @@ ConfigureMemoryUsage()
 		memtotal=$( expr $mem / 1024 )
 		memtotal=$( expr $memtotal - 256 )
 	
-		# Well unless we get less than 1024Mb, set it to 1024. JSS will not like running that low so you should consider boosting
-		# your RAM allocation. I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
-		if [ $memtotal -lt 1024 ];
+		# Well unless we get less than 1024Mb quit as we're in trouble.
+		# JSS will not like running that low so you will HAVE to boost your RAM allocation.
+		# I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
+		if [ $memtotal -lt 1536 ];
 		then
-			memtotal=1024
+			echo -e "\nERROR: Not enough memory to allocate to Tomcat"
+			echo -e "\nNeeded minimum memory: 2048"
+			echo -e "\nAvailable memory: $memtotal"
+			echo -e "\nPlease increase available RAM on this server."
 		fi
 
 		echo -e "\nMaximum memory to allocate to Tomcat is: $memtotal Mb"
