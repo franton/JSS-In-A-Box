@@ -1128,13 +1128,19 @@ EOF
 		memtotal=$( expr $mem / 1024 )
 		memtotal=$( expr $memtotal - 256 )
 	
-		# Well unless we get less than 1024Mb, set it to 1024. JSS will not like running that low so you should consider boosting
-		# your RAM allocation. I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
-		if [ $memtotal -lt 1024 ];
+		# Well unless we get less than 1024Mb quit as we're in trouble.
+		# JSS will not like running that low so you will HAVE to boost your RAM allocation.
+		# I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
+		if [ $memtotal -lt 1536 ];
 		then
-			memtotal=1024
+			echo -e "\nERROR: Not enough memory to allocate to Tomcat"
+			echo -e "\nNeeded minimum memory: 2048"
+			echo -e "\nAvailable memory: $memtotal"
+			echo -e "\nPlease increase available RAM on this server."
 		fi
-	
+
+		echo -e "\nMaximum memory to allocate to Tomcat is: $memtotal Mb"
+		
 		# Tomcat section
 		
 		# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
