@@ -696,12 +696,12 @@ SetupFirewall()
 		# And we have to add the rules manually before totally restarting the service too. Fun.
 		if [[ $httpsredirect = "TRUE" ]];
 		then
-			# Insert the following lines into the before firewall rules file.
-			sed -i "10i # Port 443 to 8443 redirect rules - added by JSS in a Box" /etc/ufw/before.rules
-			sed -i "11i *nat" /etc/ufw/before.rules
-			sed -i "12i :PREROUTING ACCEPT [0:0]" /etc/ufw/before.rules
-			sed -i "13i -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443" /etc/ufw/before.rules
-			sed -i "14i COMMIT" /etc/ufw/before.rules
+			# Append the following lines into the before firewall rules file.
+			echo "# Port 443 to 8443 redirect rules - added by JSS in a Box" >> /etc/ufw/before.rules
+			echo "*nat" >> /etc/ufw/before.rules
+			echo ":PREROUTING ACCEPT [0:0]" >> /etc/ufw/before.rules
+			echo "-A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443" >> /etc/ufw/before.rules
+			echo "COMMIT" >> /etc/ufw/before.rules
 			
 			# Restart the entire UFW service or this won't work until reboot.
 			service ufw restart
