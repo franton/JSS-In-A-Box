@@ -119,21 +119,21 @@ WhichDistAmI()
 	fi
 
 	# Second check is for RedHat 7.x
-#	if [ -f "/etc/redhat-release" ];
-#	then
-#		version=$( cat /etc/redhat-release | awk '{ print $7 }' | cut -c 1 )
+	if [ -f "/etc/redhat-release" ];
+	then
+		version=$( cat /etc/redhat-release | awk '{ print $7 }' | cut -c 1 )
 
 		# Is this RedHat 7 server?
-#		if [[ $version != "7" ]];
-#		then
-#			echo -e "Script requires RedHat 7.x. Exiting."
-#			exit 1
-#		else
+		if [[ $version != "7" ]];
+		then
+			echo -e "Script requires RedHat 7.x. Exiting."
+			exit 1
+		else
 			echo -e "Redhat 7 detected. Proceeding."
 			OS="RedHat"
 			export OS
-#		fi
-#	fi
+		fi
+	fi
 	
 	# Last check is to see if we got a bite or not
 	if [[ $OS != "Ubuntu" && $OS != "RedHat" ]];
