@@ -701,6 +701,7 @@ SetupFirewall()
 			sed -i "11i *nat" /etc/ufw/before.rules
 			sed -i "12i :PREROUTING ACCEPT [0:0]" /etc/ufw/before.rules
 			sed -i "13i -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-port 8443" /etc/ufw/before.rules
+			sed -i "14i COMMIT" /etc/ufw/before.rules
 			
 			# Restart the entire UFW service or this won't work until reboot.
 			service ufw restart
