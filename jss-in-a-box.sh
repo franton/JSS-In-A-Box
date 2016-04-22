@@ -825,7 +825,7 @@ SetupFirewall()
 		if [[ $httpsredirect = "TRUE" ]];
 		then
 			firewall-cmd --permanent --add-masquerade
-			firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=8080
+			firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=8443
 			firewall-cmd --reload
 		fi	
 	fi
