@@ -51,6 +51,7 @@
 # Version 2.1 - 16th April 2016    - Now manages Tomcat, MySQL and Java memory settings. Calculated per current formulas on JAMF's CJA course.
 # Version 2.2 - 18th April 2016    - Optional redirection of HTTPS traffic to port 443 from 8443 via firewall rules.
 # Version 2.3 - 21st April 2016    - Tomcat really doesn't like running with less than 1Gb ram, so we check for 1.5Gb available. Quit if not available.
+# Version 2.4 - 22nd April 2016	   - Choice of which supported Java version to install. In variable below.
 
 # Set up variables to be used here
 
@@ -60,10 +61,12 @@ export useract="richardpurves"								# Server admin username. Used for home loc
 
 export letsencrypt="FALSE"									# Set this to TRUE if you are going to use LetsEncrypt as your HTTPS Certificate Authority.
 export sslTESTMODE="TRUE"									# Set this to FALSE when you're confident it's generating proper certs for you
-export httpsredirect="FALSE"								# Set this to TRUE if you want your JSS to appear to be on port 443 using HTTPS
+export httpsredirect="TRUE"								# Set this to TRUE if you want your JSS to appear to be on port 443 using HTTPS
 export ssldomain="jssinabox.westeurope.cloudapp.azure.com"	# Domain name for the SSL certificates
 export sslemail="richard at richard-purves.com"				# E-mail address for the SSL CA
 export sslkeypass="changeit"								# Password to the keystore. Default is "changeit". Please change it!
+
+export javaversion="7"										# Which version of Java to install. Acceptable variables are "7" or "8"
 
 export mysqluser="root"										# MySQL root account
 export mysqlpw="changeit"									# MySQL root account password. Please change it!
@@ -75,8 +78,8 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="2.3"
-currentverdate="21st April 2016"
+currentver="2.4"
+currentverdate="22nd April 2016"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -116,21 +119,21 @@ WhichDistAmI()
 	fi
 
 	# Second check is for RedHat 7.x
-	if [ -f "/etc/redhat-release" ];
-	then
-		version=$( cat /etc/redhat-release | awk '{ print $7 }' | cut -c 1 )
+#	if [ -f "/etc/redhat-release" ];
+#	then
+#		version=$( cat /etc/redhat-release | awk '{ print $7 }' | cut -c 1 )
 
 		# Is this RedHat 7 server?
-		if [[ $version != "7" ]];
-		then
-			echo -e "Script requires RedHat 7.x. Exiting."
-			exit 1
-		else
+#		if [[ $version != "7" ]];
+#		then
+#			echo -e "Script requires RedHat 7.x. Exiting."
+#			exit 1
+#		else
 			echo -e "Redhat 7 detected. Proceeding."
 			OS="RedHat"
 			export OS
-		fi
-	fi
+#		fi
+#	fi
 	
 	# Last check is to see if we got a bite or not
 	if [[ $OS != "Ubuntu" && $OS != "RedHat" ]];
@@ -515,58 +518,128 @@ InstallOpenVMTools()
 	fi
 }
 
-InstallJava8()
+InstallJava()
 {
 	if [[ $OS = "Ubuntu" ]];
 	then
-		# Is Oracle Java 1.8 present?
-		java8=$(dpkg -l | grep "oracle-java8-installer" >/dev/null && echo "yes" || echo "no")
-
-		if [[ $java8 = "no" ]];
-		then
-			echo -e "\nOracle Java 8 not present. Installing."
-
-			echo -e "\nAdding webupd8team repository to list.\n"
-			add-apt-repository -y ppa:webupd8team/java
-			apt-get update
-
-			echo -e "\nInstalling Oracle Java 8.\n"
-			echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
-			apt-get install -q -y oracle-java8-installer
-
-			echo -e "\nSetting Oracle Java 8 to the system default.\n"
-			apt-get install -q -y oracle-java8-set-default
+		# Which version of Java did we choose earlier?
+		case $javaversion in
 		
-			echo -e "\nInstalling Java Cryptography Extension 8\n"
-			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
-			unzip $rootwarloc/jce_policy-8.zip
-			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-oracle/jre/lib/security
-			rm $rootwarloc/jce_policy-8.zip
-			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
-		else
-			echo -e "\nOracle Java 8 already installed. Proceeding."
-		fi
+		7)
+			# Is OpenJDK Java 1.7 present?
+			java7=$(dpkg -l | grep "oracle-java7-installer" >/dev/null && echo "yes" || echo "no")
+		
+			if [[ $java7 = "no" ]];
+			then
+				echo -e "\nOracle Java 7 not present. Installing."
+			
+				echo -e "\nAdding webupd8team repository to list."
+				add-apt-repository -y ppa:webupd8team/java
+				apt-get update
+
+				echo -e "\nInstalling Oracle Java 7."
+				echo oracle-java7-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+				apt-get install -q -y oracle-java7-installer
+
+				echo -e "\nSetting Oracle Java 7 to the system default."
+				apt-get install -q -y oracle-java7-set-default
+
+				echo -e "\nInstalling Java Cryptography Extension 7\n"
+				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip > $rootwarloc/jce_policy-7.zip
+				unzip $rootwarloc/jce_policy-7.zip
+				cp $rootwarloc/UnlimitedJCEPolicy/* /usr/lib/jvm/jre/lib/security
+				rm $rootwarloc/jce_policy-7.zip
+				rm -rf $rootwarloc/UnlimitedJCEPolicy
+			else
+				echo -e "\nOracle Java 7 already installed. Proceeding."
+			fi
+		;;
+		
+		8)
+			# Is Oracle Java 1.8 present?
+			java8=$(dpkg -l | grep "oracle-java8-installer" >/dev/null && echo "yes" || echo "no")
+
+			if [[ $java8 = "no" ]];
+			then
+				echo -e "\nOracle Java 8 not present. Installing."
+
+				echo -e "\nAdding webupd8team repository to list.\n"
+				add-apt-repository -y ppa:webupd8team/java
+				apt-get update
+
+				echo -e "\nInstalling Oracle Java 8.\n"
+				echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+				apt-get install -q -y oracle-java8-installer
+
+				echo -e "\nSetting Oracle Java 8 to the system default.\n"
+				apt-get install -q -y oracle-java8-set-default
+		
+				echo -e "\nInstalling Java Cryptography Extension 8\n"
+				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
+				unzip $rootwarloc/jce_policy-8.zip
+				cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-oracle/jre/lib/security
+				rm $rootwarloc/jce_policy-8.zip
+				rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
+			else
+				echo -e "\nOracle Java 8 already installed. Proceeding."
+			fi
+		;;
+		
+		*)
+			echo -e "\nIncorrect version of Java chosen. Skipping install."
+		;;
+		esac
 	fi
 
 	if [[ $OS = "RedHat" ]];
 	then
-		# Is OpenJDK Java 1.8 present?
-		java8=$(yum -q list installed java-1.8.0-openjdk &>/dev/null && echo "yes" || echo "no" )
-
-		if [[ $java8 = "no" ]];
-		then
-			echo -e "\nOpenJDK 8 not present. Installing."
-			yum -q -y install java-1.8.0-openjdk
+		# Which version of Java did we choose earlier?
+		case $javaversion in
 		
-			echo -e "\nInstalling Java Cryptography Extension 8\n"
-			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
-			unzip $rootwarloc/jce_policy-8.zip
-			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/jre/lib/security
-			rm $rootwarloc/jce_policy-8.zip
-			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
-		else
-			echo -e "\nOpenJDK 8 already installed. Proceeding."
-		fi
+		7)
+			# Is OpenJDK Java 1.7 present?
+			java7=$(yum -q list installed java-1.7.0-openjdk &>/dev/null && echo "yes" || echo "no" )
+
+			if [[ $java7 = "no" ]];
+			then
+				echo -e "\nOpenJDK 7 not present. Installing."
+				yum -q -y install java-1.7.0-openjdk
+		
+				echo -e "\nInstalling Java Cryptography Extension 7\n"
+				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip > $rootwarloc/jce_policy-7.zip
+				unzip $rootwarloc/jce_policy-7.zip
+				cp $rootwarloc/UnlimitedJCEPolicy/* /usr/lib/jvm/jre/lib/security
+				rm $rootwarloc/jce_policy-7.zip
+				rm -rf $rootwarloc/UnlimitedJCEPolicy
+			else
+				echo -e "\nOpenJDK 7 already installed. Proceeding."
+			fi
+		;;
+		
+		8)
+			# Is OpenJDK Java 1.8 present?
+			java8=$(yum -q list installed java-1.8.0-openjdk &>/dev/null && echo "yes" || echo "no" )
+
+			if [[ $java8 = "no" ]];
+			then
+				echo -e "\nOpenJDK 8 not present. Installing."
+				yum -q -y install java-1.8.0-openjdk
+		
+				echo -e "\nInstalling Java Cryptography Extension 8\n"
+				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
+				unzip $rootwarloc/jce_policy-8.zip
+				cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/jre/lib/security
+				rm $rootwarloc/jce_policy-8.zip
+				rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
+			else
+				echo -e "\nOpenJDK 8 already installed. Proceeding."
+			fi
+		;;
+		
+		*)
+			echo -e "\nIncorrect version of Java chosen. Skipping install."
+		;;
+		esac
 	fi
 }
 
@@ -586,8 +659,19 @@ InstallTomcat()
 			rm $ubtomcatloc/webapps/ROOT.war 2>/dev/null
 			rm -rf $ubtomcatloc/webapps/ROOT
 
-			echo -e "\nSetting Tomcat to use Oracle Java 8 in /etc/default/tomcat7 \n"
-			sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-8-oracle|" /etc/default/tomcat7	
+			case $javaversion in
+			
+			7)
+				echo -e "\nSetting Tomcat to use Oracle Java 7 in /etc/default/tomcat7 \n"
+				sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-7-oracle|" /etc/default/tomcat7			
+			;;
+			
+			8)
+				echo -e "\nSetting Tomcat to use Oracle Java 8 in /etc/default/tomcat7 \n"
+				sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-8-oracle|" /etc/default/tomcat7
+			;;
+			
+			esac
 
 			echo -e "\nStarting Tomcat service\n"
 			TomcatService start
@@ -740,7 +824,9 @@ SetupFirewall()
 		# A little nicer than UFW, as there are commands to do this instead of directly manipulating firewall rules.
 		if [[ $httpsredirect = "TRUE" ]];
 		then
-			firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=8443
+			firewall-cmd --permanent --add-masquerade
+			firewall-cmd --permanent --add-forward-port=port=443:proto=tcp:toport=8080
+			firewall-cmd --reload
 		fi	
 	fi
 }
@@ -1233,7 +1319,7 @@ InitialiseServer()
 	InstallFirewall
 	InstallOpenSSH
 	InstallOpenVMTools
-	InstallJava8		# This includes the Cryptography Extensions
+	InstallJava			# This includes the Cryptography Extensions
 	InstallTomcat
 	InstallMySQL
 	ConfigureMemoryUsage
