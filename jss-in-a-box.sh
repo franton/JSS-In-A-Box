@@ -61,7 +61,7 @@ export useract="richardpurves"								# Server admin username. Used for home loc
 
 export letsencrypt="FALSE"									# Set this to TRUE if you are going to use LetsEncrypt as your HTTPS Certificate Authority.
 export sslTESTMODE="TRUE"									# Set this to FALSE when you're confident it's generating proper certs for you
-export httpsredirect="TRUE"								# Set this to TRUE if you want your JSS to appear to be on port 443 using HTTPS
+export httpsredirect="FALSE"								# Set this to TRUE if you want your JSS to appear to be on port 443 using HTTPS
 export ssldomain="jssinabox.westeurope.cloudapp.azure.com"	# Domain name for the SSL certificates
 export sslemail="richard at richard-purves.com"				# E-mail address for the SSL CA
 export sslkeypass="changeit"								# Password to the keystore. Default is "changeit". Please change it!
