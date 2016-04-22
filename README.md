@@ -32,6 +32,8 @@ The only things it doesn't do are:
 This assumes you have an either an Ubuntu 14.04 LTS or a RedHat 7.x server installed with openssh.
 This also assumes the server is properly configured to see the internet and has a properly set up DNS hostname.
 
+Please do NOT use Ubuntu's minimal iso install. This will miss out lots of key software and this script will fail. Use the "server" download instead.
+
 1. Download the proper script depending on which Linux distribution you are using.
 2. Edit the jss-in-a-box.sh script variables in line with your own security policies
   - Server admin username
