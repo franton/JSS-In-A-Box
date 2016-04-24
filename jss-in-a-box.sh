@@ -434,7 +434,7 @@ InstallFirewall()
 
 		if [[ $fwd = "no" ]];
 		then
-			echo -e "\nFirewallD not present. Installing.\n"
+			echo -e "\nFirewallD not present. Installing."
 			yum -q -y install firewalld
 		else
 			echo -e "\nFirewallD already installed. Proceeding."
@@ -484,19 +484,19 @@ InstallOpenVMTools()
 		then
 			echo -e "\nopen vm tools not present. Installing."
 
-			echo -e "\nGetting VMware packaging keys from server.\n"
+			echo -e "\nGetting VMware packaging keys from server."
 			wget http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-DSA-KEY.pub
 			wget http://packages.vmware.com/tools/keys/VMWARE-PACKAGING-GPG-RSA-KEY.pub
 
-			echo -e "\nInstalling VMware packaging keys into apt.\n"
+			echo -e "\nInstalling VMware packaging keys into apt."
 			apt-key add ./VMWARE-PACKAGING-GPG-DSA-KEY.pub
 			apt-key add ./VMWARE-PACKAGING-GPG-RSA-KEY.pub
 
-			echo -e "\nCleaning up key files.\n"
+			echo -e "\nCleaning up key files."
 			rm ./VMWARE-PACKAGING-GPG-DSA-KEY.pub
 			rm ./VMWARE-PACKAGING-GPG-RSA-KEY.pub
 
-			echo -e "\nInstalling open vm tools.\n"
+			echo -e "\nInstalling open vm tools."
 			apt-get install -q -y open-vm-tools
 		else
 			echo -e "\nopen vm tools already installed. Proceeding."
@@ -535,13 +535,13 @@ InstallJava()
 			
 				echo -e "\nAdding webupd8team repository to list."
 				add-apt-repository -y ppa:webupd8team/java
-				apt-get update
+				apt-get update -q
 
-				echo -e "\nInstalling Oracle Java 7."
+				echo -e "\nInstalling Oracle Java 7.\n"
 				echo oracle-java7-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
 				apt-get install -q -y oracle-java7-installer
 
-				echo -e "\nSetting Oracle Java 7 to the system default."
+				echo -e "\nSetting Oracle Java 7 to the system default.\n"
 				apt-get install -q -y oracle-java7-set-default
 
 				echo -e "\nInstalling Java Cryptography Extension 7\n"
@@ -565,7 +565,7 @@ InstallJava()
 
 				echo -e "\nAdding webupd8team repository to list.\n"
 				add-apt-repository -y ppa:webupd8team/java
-				apt-get update
+				apt-get update -q
 
 				echo -e "\nInstalling Oracle Java 8.\n"
 				echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
@@ -655,19 +655,19 @@ InstallTomcat()
 			echo -e "\nTomcat 7 not present. Installing\n"
 			apt-get install -q -y tomcat7
 		
-			echo -e "\nClearing out Tomcat 7 default ROOT.war installation\n"
+			echo -e "\nClearing out Tomcat 7 default ROOT.war installation"
 			rm $ubtomcatloc/webapps/ROOT.war 2>/dev/null
 			rm -rf $ubtomcatloc/webapps/ROOT
 
 			case $javaversion in
 			
 			7)
-				echo -e "\nSetting Tomcat to use OpenJDK 7 in /etc/default/tomcat7 \n"
-				sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/default-java|" /etc/default/tomcat7			
+				echo -e "\nSetting Tomcat to use OpenJDK 7 in /etc/default/tomcat7"
+				sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-7-oracle|" /etc/default/tomcat7			
 			;;
 			
 			8)
-				echo -e "\nSetting Tomcat to use Oracle Java 8 in /etc/default/tomcat7 \n"
+				echo -e "\nSetting Tomcat to use Oracle Java 8 in /etc/default/tomcat7"
 				sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-8-oracle|" /etc/default/tomcat7
 			;;
 			
@@ -1074,39 +1074,39 @@ ConfigureMemoryUsage()
 			# Let's start by backing up the server.xml file in case things go wrong.
 		
 			# THIS secton is all the one off config stuff.
-			echo -e "\nBacking up $server file\n"
+			echo -e "\nBacking up $server file"
 			cp $server $server.backup
 
-			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
+			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS"
 			sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
 
-			echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
+			echo -e "\nConfiguring HTTPS to use more secure ciphers"
 			sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
 
-			echo -e "\nEnabling Tomcat shared executor\n"
+			echo -e "\nEnabling Tomcat shared executor"
 			sed -i '62d' $server
 			sed -i '59d' $server
 		
-			echo -e "\nDisabling Tomcat default HTTP Connector\n"
+			echo -e "\nDisabling Tomcat default HTTP Connector"
 			sed -i '70i<!--' $server
 			sed -i '75i-->' $server
 
-			echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+			echo -e "\nEnabling Tomcat HTTP Connector with executor"
 			sed -i '82d' $server
 			sed -i '77d' $server
 			
-			echo -e "\nAdding Max Threads to HTTP connector\n"
+			echo -e "\nAdding Max Threads to HTTP connector"
 			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
 
-			echo -e "\nAdding executor to HTTPS connector\n"
+			echo -e "\nAdding executor to HTTPS connector"
 			sed -i 's/<Connector port="8443"/<Connector port="8443" executor="tomcatThreadPool"/' $server
 		fi
 		
 		# Now for the settings we'll be periodically adjusting
-		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads\n"
+		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads"
 		sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
 
-		echo -e "\nConfiguring HTTPS connector with current maximum threads\n"
+		echo -e "\nConfiguring HTTPS connector with current maximum threads"
 		sed -i 's/maxThreads="150" scheme="https" secure="true"/maxThreads="'"$MaxThreads"'" scheme="https" secure="true"/' $server
 
 		# MySQL
@@ -1114,26 +1114,26 @@ ConfigureMemoryUsage()
 		if [ ! -f "$mycnfloc.backup" ];
 		then
 			# Backup the my.cnf file
-			echo -e "\nBacking up $server file\n"
+			echo -e "\nBacking up $server file"
 			cp $mycnfloc $mycnfloc.backup
 			
 			# Configure the max connections in my.cnf (as we worked it out earlier) and remove the hashtag
-			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections\n"
+			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections"
 			sed -i 's/.max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
 		else
-			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections\n"
+			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections"
 			sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc		
 		fi
 
 		# Java
 		
-		echo -e "\nConfiguring Tomcat Java options\n"
+		echo -e "\nConfiguring Tomcat Java options"
 	
 		# Configure max ram available to Java from what we worked out earlier.
 		# If we don't have a setenv config file, generate one. Otherwise fix what we have.
 		if [ ! -f "$tomcatconf/setenv.sh" ];
 		then
-			echo -e "\nsetenv.sh file missing. Now creating it.\n"
+			echo -e "\nsetenv.sh file missing. Now creating it."
 
 		# I have to not use the code formatting here or this file isn't written out properly.
 
@@ -1176,7 +1176,7 @@ EOF
 				chmod 755 $tomcatconf/setenv.sh
 			fi
 
-		echo -e "\nConfiguring setenv.sh file to use $memtotal as max memory.\n"
+		echo -e "\nConfiguring setenv.sh file to use $memtotal as max memory."
 		sed -i 's/-Xmx.*/-Xmx'"$memtotal"'m"/' $tomcatconf/setenv.sh
 
 	fi
@@ -1237,53 +1237,53 @@ EOF
 			# Let's start by backing up the server.xml file in case things go wrong.
 		
 			# THIS secton is all the one off config stuff.
-			echo -e "\nBacking up $server file\n"
+			echo -e "\nBacking up $server file"
 			cp $server $server.backup
 
-			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS\n"
+			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS"
 			sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
 
-			echo -e "\nConfiguring HTTPS to use more secure ciphers\n"
+			echo -e "\nConfiguring HTTPS to use more secure ciphers"
 			sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
 
-			echo -e "\nEnabling Tomcat shared executor\n"
+			echo -e "\nEnabling Tomcat shared executor"
 			sed -i '60d' $server
 			sed -i '57d' $server
 		
-			echo -e "\nDisabling Tomcat default HTTP Connector\n"
+			echo -e "\nDisabling Tomcat default HTTP Connector"
 			sed -i '68i<!--' $server
 			sed -i '72i-->' $server
 
-			echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+			echo -e "\nEnabling Tomcat HTTP Connector with executor"
 			sed -i '79d' $server
 			sed -i '74d' $server
 			
-			echo -e "\nAdding Max Threads to HTTP connector\n"
+			echo -e "\nAdding Max Threads to HTTP connector"
 			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
 
-			echo -e "\nAdding executor to HTTPS connector\n"
+			echo -e "\nAdding executor to HTTPS connector"
 			sed -i 's/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol"/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol" executor="tomcatThreadPool"/' $server
 			
 		fi
 		
 		# Now for the settings we'll be periodically adjusting
-		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads\n"
+		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads"
 		sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
 
-		echo -e "\nConfiguring HTTPS connector with current maximum threads\n"
+		echo -e "\nConfiguring HTTPS connector with current maximum threads"
 		sed -i 's/maxThreads="150" SSLEnabled="true"/maxThreads="'"$MaxThreads"'" SSLEnabled="true"/' $server
 		
 		# MySQL section
 	
 		if [ ! -f "$mycnfloc.backup" ];
 		then
-			echo -e "\nBacking up $mycnfloc file\n"
+			echo -e "\nBacking up $mycnfloc file"
 			cp $mycnfloc $mycnfloc.backup
 
 			echo "max_connections = $MySQLMaxConnections" >> $mycnfloc
 		else
 			# If the backup exists, we've been here before. Alter the existing file instead.
-			echo -e "\nConfiguring MySQL max connections to: $MySQLMaxConnections\n"
+			echo -e "\nConfiguring MySQL max connections to: $MySQLMaxConnections"
 			sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
 		fi
 
@@ -1294,7 +1294,7 @@ EOF
 			echo -e "\nBacking up $tomcatconf file\n"
 			cp $tomcatconf $tomcatconf.backup
 		
-			echo -e "\nAppending Tomcat config to $tomcatconf\n"
+			echo -e "\nAppending Tomcat config to $tomcatconf"
 			
 			echo "JAVA_OPTS=-Xms1024m -Xmx"$memtotal"m -XX:MaxPermSize=512m -Xss256k -XX:MaxGCPauseMillis=1500 -XX:GCTimeRatio=9 -Djava.awt.headless=true -server -XX:+DisableExplicitGC" >> $tomcatconf
 			
