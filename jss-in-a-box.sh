@@ -547,7 +547,7 @@ InstallJava()
 				echo -e "\nInstalling Java Cryptography Extension 7\n"
 				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip > $rootwarloc/jce_policy-7.zip
 				unzip $rootwarloc/jce_policy-7.zip
-				cp $rootwarloc/UnlimitedJCEPolicy/* /usr/lib/jvm/default-java/jre/lib/security
+				cp $rootwarloc/UnlimitedJCEPolicy/* /usr/lib/jvm/java-7-oracle/jre/lib/security
 				rm $rootwarloc/jce_policy-7.zip
 				rm -rf $rootwarloc/UnlimitedJCEPolicy
 			else
