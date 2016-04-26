@@ -1587,6 +1587,7 @@ DumpDatabase()
 		# Restart tomcat
 		echo -e "\nRestarting Tomcat service"
 		TomcatService restart
+		return
 	fi
 	
 	# Does this name already exist?
