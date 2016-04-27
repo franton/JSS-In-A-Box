@@ -1808,7 +1808,7 @@ UpgradeInstance()
 		
 			# Copy back the DataBase.xml file
 			echo -e "\nCopying back DataBase.xml of instance: $instance"
-			mv -f /tmp/DataBase.xml $webapploc/$instance$DataBaseLoc
+			mv -f /tmp/DataBase.xml $webapploc/$instance/$DataBaseLoc
 
 			# Restart tomcat
 			echo -e "\nRestarting Tomcat service"
