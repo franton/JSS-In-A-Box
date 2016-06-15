@@ -52,6 +52,7 @@
 # Version 2.2 - 18th April 2016    - Optional redirection of HTTPS traffic to port 443 from 8443 via firewall rules.
 # Version 2.3 - 21st April 2016    - Tomcat really doesn't like running with less than 1Gb ram, so we check for 1.5Gb available. Quit if not available.
 # Version 2.4 - 22nd April 2016	   - Choice of which supported Java version to install. In variable below.
+# Version 2.5 - 15th June 2016	   - Fixed missing rule in UFW configuration. Also fixed bug where connector keystore file isn't set properly.
 
 # Set up variables to be used here
 
@@ -769,6 +770,7 @@ SetupFirewall()
 		ufw allow https			# Port 443
 		ufw allow mysql			# Port 3306
 		ufw allow http-alt		# Port 8080 (delete once you got SSL working)
+		ufw allow 8443			# Port 8443 (delete if you enable 443 redirection or are using 8080 above)
 		ufw allow 2195			# Apple Push Notification Service
 		ufw allow 2196			# Apple Push Notification Service
 		ufw allow 5223			# Apple Push Notification Service
@@ -1024,6 +1026,8 @@ ConfigureMemoryUsage()
 		mycnfloc=$ubmycnfloc
 		tomcatconf="/usr/share/tomcat7/bin"
 		server="$ubtomcatloc/conf/server.xml"
+		sslkeystorepath="$ubtomcatloc/keystore"
+		server="$ubtomcatloc/conf/server.xml"
 		
 		# Now we work out the correct memory and connection settings
 		# What's the default MaxPoolSize?
@@ -1186,6 +1190,8 @@ EOF
 		webapps="$redhattomcatloc/webapps"
 		mycnfloc=$rhmycnfloc
 		tomcatconf="$redhattomcatloc/conf/tomcat.conf"
+		server="$redhattomcatloc/conf/server.xml"
+		sslkeystorepath="$redhattomcatloc/keystore"
 		server="$redhattomcatloc/conf/server.xml"
 
 		# Now we work out the correct memory and connection settings
