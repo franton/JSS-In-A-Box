@@ -53,6 +53,8 @@
 # Version 2.3 - 21st April 2016    - Tomcat really doesn't like running with less than 1Gb ram, so we check for 1.5Gb available. Quit if not available.
 # Version 2.4 - 22nd April 2016	   - Choice of which supported Java version to install. In variable below.
 # Version 2.5 - 15th June 2016	   - Fixed missing rule in UFW configuration. Also fixed bug where connector keystore file isn't set properly.
+# Version 2.6 - 23rd June 2016	   - Recoded large chunks of the LetsEncrypt code due to them suddenly getting distribution via repo AND changing the name of the binary that does the work.
+				   - Also removed crontab job in favour of systemd. Got to move with the times, and it's a little nicer to work with running as root.
 
 # Set up variables to be used here
 
@@ -836,13 +838,14 @@ SetupFirewall()
 InstallLetsEncrypt()
 {
 	# Is LetsEncrypt present?
-	# This one is a git clone, rather than a apt-get installation. We'll be putting this in /usr/local/letsencrypt
+	# This one is a git clone, rather than an installation for cross distro reasons. We'll be putting this in /usr/local/letsencrypt
 	if [ ! -d "/usr/local/letsencrypt" ];
 	then
-		echo -e "\nLetsEncrypt not present. Cloning from GitHub.\n"
-		cd /usr/local
-		git clone https://github.com/letsencrypt/letsencrypt
-		sudo -H /usr/local/letsencrypt/letsencrypt-auto 
+		echo -e "\nLetsEncrypt not present. Downloading installation script from dl.eff.org.\n"
+		mkdir /usr/local/letsencrypt
+		cd /usr/local/letsencrypt
+		wget https://dl.eff.org/certbot-auto
+		sudo -H /usr/local/letsencrypt/certbot-auto
 		cd $currentdir
 	else
 		echo -e "\nLetsEncrypt is already installed. Proceeding."
@@ -858,9 +861,9 @@ InstallLetsEncrypt()
 	echo -e "\nObtaining Certificate from LetsEncrypt Certificate Authority\n"
 	if [[ $sslTESTMODE = "TRUE" ]];
 	then
-		sudo -H /usr/local/letsencrypt/letsencrypt-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos --test-cert
+		sudo -H /usr/local/letsencrypt/certbot-auto renew --dry-run
 	else
-		sudo -H /usr/local/letsencrypt/letsencrypt-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos
+		sudo -H /usr/local/letsencrypt/certbot-auto renew --quiet --no-self-upgrade
 	fi
 
 	# Derive the correct file locations from the current OS
@@ -938,10 +941,39 @@ InstallLetsEncrypt()
 	# We're done here. Start 'er up.
 	TomcatService start
 	
-	# Oh wait, we have to set up a periodic renewal since LetsEncrypt doesn't do that for Tomcat
-	# (at time of coding - 2nd Jan 2016)
-	# This should renew every couple months. LE certs last 90 days but quicker is fine.
-	crontab -l | { echo "30	03	01	*/2	*	$homefolder/jss-in-a-box.sh -s"; } | crontab -
+	# Oh wait, we have to set up a periodic renewal since LetsEncrypt doesn't do that for Tomcat.
+	# LE certs last 90 days. They now advise to do a renewal twice a DAY. (yikes) We're doing it once at midnight.
+	# Don't panic. It'll only renew if it's close to expiry now. Have changed from crontab to systemd call.
+	$homefolder/jss-in-a-box.sh -s
+	
+	touch /etc/systemd/system/le-renew.timer
+
+cat > /etc/systemd/system/le-renew.timer << LETIMER
+[Unit]
+Description=Perform LetsEncrypt tomcat certificate renewal
+
+[Timer]
+OnCalendar=daily
+
+[Install]
+WantedBy=timers.target
+LETIMER
+
+	touch /etc/systemd/system/le-renew.service
+
+cat > /etc/systemd/system/le-renew.timer << LESERVICE
+[Unit]
+Description=Perform LetsEncrypt tomcat certificate renewal
+
+[Service]
+Type=simple
+Nice=19
+IOSchedulingClass=2
+IOSchedulingPriority=7
+ExecStart="$homefolder"/jss-in-a-box.sh -s
+LESERVICE
+
+	sudo systemctl start le-renew.service
 }
 
 UpdateLeSSLKeys()
@@ -949,7 +981,6 @@ UpdateLeSSLKeys()
 	# update SSL keys from LetsEncrypt
 
 	# Is LetsEncrypt present?
-	# This one is a git clone, rather than a apt-get installation. We'll be putting this in /usr/local/letsencrypt
 	if [[ $letsencrypt = "FALSE" ]];
 	then
 		echo -e "\nLetsEncrypt option disabled in script. Cannot proceed.\n"
@@ -977,9 +1008,9 @@ UpdateLeSSLKeys()
 		echo -e "\nObtaining Certificate from LetsEncrypt Certificate Authority\n"
 		if [[ $sslTESTMODE = "TRUE" ]];
 		then
-			sudo -H /usr/local/letsencrypt/letsencrypt-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos --test-cert
+			sudo -H /usr/local/letsencrypt/certbot-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos --test-cert
 		else
-			sudo -H /usr/local/letsencrypt/letsencrypt-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos
+			sudo -H /usr/local/letsencrypt/certbot-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos
 		fi
 
 		# Clean up the old keystore and keys
