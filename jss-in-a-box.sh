@@ -54,7 +54,6 @@
 # Version 2.4 - 22nd April 2016	   - Choice of which supported Java version to install. In variable below.
 # Version 2.5 - 15th June 2016	   - Fixed missing rule in UFW configuration. Also fixed bug where connector keystore file isn't set properly.
 # Version 2.6 - 23rd June 2016	   - Recoded large chunks of the LetsEncrypt code due to them suddenly getting distribution via repo AND changing the name of the binary that does the work.
-				   - Also removed crontab job in favour of systemd. Got to move with the times, and it's a little nicer to work with running as root.
 
 # Set up variables to be used here
 
@@ -941,39 +940,41 @@ InstallLetsEncrypt()
 	# We're done here. Start 'er up.
 	TomcatService start
 	
-	# Oh wait, we have to set up a periodic renewal since LetsEncrypt doesn't do that for Tomcat.
-	# LE certs last 90 days. They now advise to do a renewal twice a DAY. (yikes) We're doing it once at midnight.
-	# Don't panic. It'll only renew if it's close to expiry now. Have changed from crontab to systemd call.
-	$homefolder/jss-in-a-box.sh -s
+	# Oh wait, we have to set up a periodic renewal since LetsEncrypt doesn't do that for Tomcat
+ 	# (at time of coding - 23rd June 2016)
+ 	# This should run every night at midnight. LE certs last 90 days but quicker is fine as it won't renew.
+ 	crontab -l | { echo "0 0 * * *	$homefolder/jss-in-a-box.sh -s"; } | crontab -
 	
-	touch /etc/systemd/system/le-renew.timer
+	# The following commented out code is the forthcoming systemd replacement for the crontab job above. Ubuntu 14.04 doesn't support it but next versions will.
+	
+#	touch /etc/systemd/system/le-renew.timer
 
-cat > /etc/systemd/system/le-renew.timer << LETIMER
-[Unit]
-Description=Perform LetsEncrypt tomcat certificate renewal
+#cat > /etc/systemd/system/le-renew.timer << LETIMER
+#[Unit]
+#Description=Perform LetsEncrypt tomcat certificate renewal
 
-[Timer]
-OnCalendar=daily
+#[Timer]
+#OnCalendar=daily
 
-[Install]
-WantedBy=timers.target
-LETIMER
+#[Install]
+#WantedBy=timers.target
+#LETIMER
 
-	touch /etc/systemd/system/le-renew.service
+#	touch /etc/systemd/system/le-renew.service
 
-cat > /etc/systemd/system/le-renew.timer << LESERVICE
-[Unit]
-Description=Perform LetsEncrypt tomcat certificate renewal
+#cat > /etc/systemd/system/le-renew.timer << LESERVICE
+#[Unit]
+#Description=Perform LetsEncrypt tomcat certificate renewal
 
-[Service]
-Type=simple
-Nice=19
-IOSchedulingClass=2
-IOSchedulingPriority=7
-ExecStart="$homefolder"/jss-in-a-box.sh -s
-LESERVICE
+#[Service]
+#Type=simple
+#Nice=19
+#IOSchedulingClass=2
+#IOSchedulingPriority=7
+#ExecStart="$homefolder"/jss-in-a-box.sh -s
+#LESERVICE
 
-	sudo systemctl start le-renew.service
+#	sudo systemctl start le-renew.service
 }
 
 UpdateLeSSLKeys()
