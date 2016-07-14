@@ -54,6 +54,7 @@
 # Version 2.4 - 22nd April 2016	   - Choice of which supported Java version to install. In variable below.
 # Version 2.5 - 15th June 2016	   - Fixed missing rule in UFW configuration. Also fixed bug where connector keystore file isn't set properly.
 # Version 2.6 - 23rd June 2016	   - Recoded large chunks of the LetsEncrypt code due to them suddenly getting distribution via repo AND changing the name of the binary that does the work.
+# Version 2.7 - 14th July 2016 	   - Added code to make sure that tomcat webapp folders have correct ownership of the appropriate tomcat user.
 
 # Set up variables to be used here
 
@@ -1848,6 +1849,9 @@ UpgradeInstance()
 			echo -e "\nCopying back DataBase.xml of instance: $instance"
 			mv -f /tmp/DataBase.xml $webapploc/$instance/$DataBaseLoc
 
+			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
+			chown -R $user:$user $webapploc/$instance.*
+
 			# Restart tomcat
 			echo -e "\nRestarting Tomcat service"
 			TomcatService restart
@@ -1941,6 +1945,9 @@ UpgradeAllInstances() {
 			# Copy back the DataBase.xml file
 			echo -e "Copying back DataBase.xml of instance: ${webapps[i]}"
 			mv -f /tmp/DataBase.xml $webapploc/${webapps[i]}/$DataBaseLoc/
+
+			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
+			chown -R $user:$user $webapploc/${webapps[i]}.*
 
 			# Loop finishes here
 			done
