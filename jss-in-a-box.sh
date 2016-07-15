@@ -1491,6 +1491,9 @@ CreateNewInstance()
 		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
 	fi
 
+	# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
+	chown -R $user:$user $webapploc/$instance.*
+
 	# Recalculate memory usage since we've made changes
 	ConfigureMemoryUsage
 }
