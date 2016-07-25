@@ -914,7 +914,7 @@ InstallLetsEncrypt()
 	rm $sslkeystorepath/fullchain_and_key.p12
 
 	# Tomcat server.xml was previous prepared in the ConfigureMemoryUseage function.
-	# Now we disable HTTP and enable the HTTP connectors
+	# Now we disable HTTP and enable the HTTPS connectors
 
 	if [[ $OS = "Ubuntu" ]];
 	then	
@@ -922,7 +922,7 @@ InstallLetsEncrypt()
 		sed -i '77i<!--' $server
 		sed -i '82i-->' $server
 
-		echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+		echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
 		sed -i '93d' $server
 		sed -i '87d' $server
 	fi
@@ -933,7 +933,7 @@ InstallLetsEncrypt()
 		sed -i '74i<!--' $server
 		sed -i '79i-->' $server
 
-		echo -e "\nEnabling Tomcat HTTP Connector with executor\n"
+		echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
 		sed -i '91d' $server
 		sed -i '85d' $server
 	fi
