@@ -3,6 +3,9 @@
 ## The (almost) complete Casper 9 JSS setup script
 ## http://www.richard-purves.com/?p=136
 
+# 3rd August 2016 - 9.93 support coming soon. Requires work for Tomcat 8 which is in progress and for my having access to 9.93 ;)
+# Java 7 support being removed in next version.
+
 ### Introduction
 
 This is the (almost) complete setup script for JAMF Software's JSS server. It will perform the following tasks :-
@@ -24,6 +27,7 @@ This is the (almost) complete setup script for JAMF Software's JSS server. It wi
 The only things it doesn't do are:
 1) Set up anything to do with load balancing. That can be done inside the JSS itself.
 2) Any remote server configuration with the sole exception of modifying remote databases.
+3) Clustered server setup.
 
 ###### Oh, and NO SNEAKY using this on your CJA course! I've tipped off the JAMF instructors I know of!
 
