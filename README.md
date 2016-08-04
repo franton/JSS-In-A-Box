@@ -3,9 +3,6 @@
 ## The (almost) complete Casper 9 JSS setup script
 ## http://www.richard-purves.com/?p=136
 
-# 3rd August 2016 - 9.93 support coming soon. Requires work for Tomcat 8 which is in progress and for my having access to 9.93 ;)
-# Java 7 support being removed in next version.
-
 ### Introduction
 
 This is the (almost) complete setup script for JAMF Software's JSS server. It will perform the following tasks :-
@@ -75,6 +72,6 @@ The instructional video below provides more details of operation. NOTE: This is 
 * OpenVMTools
 * Oracle Java 8 (Ubuntu) / openjdk 8 (Redhat)
 * Java Cryptography Extensions
-* Apache Tomcat 7
+* Apache Tomcat 8
 * MySQL Server 5.6
 * (optional) LetsEncrypt
