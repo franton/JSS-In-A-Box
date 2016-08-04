@@ -55,6 +55,7 @@
 # Version 2.5 - 15th June 2016	   - Fixed missing rule in UFW configuration. Also fixed bug where connector keystore file isn't set properly.
 # Version 2.6 - 23rd June 2016	   - Recoded large chunks of the LetsEncrypt code due to them suddenly getting distribution via repo AND changing the name of the binary that does the work.
 # Version 2.7 - 14th July 2016 	   - Added code to make sure that tomcat webapp folders have correct ownership of the appropriate tomcat user.
+# Version 3.0 - 4th August 2016	   - Removed Java 7, upgraded Tomcat to version 8. Refactored all the relevant code and paths to compensate for manual install. Down 300+ lines for same functionality!
 
 # Set up variables to be used here
 
@@ -69,8 +70,6 @@ export ssldomain="jssinabox.westeurope.cloudapp.azure.com"	# Domain name for the
 export sslemail="richard at richard-purves.com"				# E-mail address for the SSL CA
 export sslkeypass="changeit"								# Password to the keystore. Default is "changeit". Please change it!
 
-export javaversion="7"										# Which version of Java to install. Acceptable variables are "7" or "8"
-
 export mysqluser="root"										# MySQL root account
 export mysqlpw="changeit"									# MySQL root account password. Please change it!
 export mysqlserveraddress="localhost" 						# IP/Hostname of MySQL server. Default is local server.
@@ -81,15 +80,18 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="2.6"
-currentverdate="23rd June 2016"
+currentver="3.0"
+currentverdate="4th August 2016"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
 export logfiles="/var/log/JSS"								# Location of ROOT and instance JSS log files
 
-export ubtomcatloc="/var/lib/tomcat7"						# Tomcat's installation path(s)
-export redhattomcatloc="/usr/share/tomcat"
+export tomcatloc="/opt/tomcat8"								# Tomcat's installation path
+export webapploc="$tomcatloc/webapps"						# Tomcat web application install path
+export user="tomcat"										# User and Group used for tomcat
+export sslkeystorepath="$tomcatloc/keystore"				# Keystore path
+export server="$tomcatloc/conf/server.xml"					# Tomcat server.xml path
 
 export ubmycnfloc="/etc/mysql/my.cnf"						# MySQL's configuration file path(s)
 export rhmycnfloc="/etc/my.cnf"
@@ -174,7 +176,7 @@ TomcatService()
 {
 	if [[ $OS = "Ubuntu" ]];
 	then
-		service tomcat7 $1
+		initctl $1 tomcat
 	fi
 	
 	if [[ $OS = "RedHat" ]];
@@ -209,57 +211,23 @@ CheckMySQL()
 	fi
 }
 
-CheckTomcat()
-{
-	if [[ $OS = "Ubuntu" ]];
-	then
-		export tomcat=$(dpkg -l | grep "tomcat7" >/dev/null && echo "yes" || echo "no")
-	fi
-	
-	if [[ $OS = "RedHat" ]];
-	then
-		export tomcat=$(yum -q list installed tomcat &>/dev/null && echo "yes" || echo "no" )
-	fi
-}
-
 InstanceList()
 {
-	if [[ $OS = "Ubuntu" ]];
+	# Is Tomcat present?
+	[ -d "$tomcatloc" ] && tomcat="yes" || tomcat="no"	
+
+	if [[ $tomcat = "no" ]];
 	then
-		CheckTomcat	
-		if [[ $tomcat = "no" ]];
-		then
-			echo -e "\nTomcat 7 not present. Please install before trying again."
-		else
-			echo -e "\nJSS Instance List\n-----------------\n"
-			find $ubtomcatloc/webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///'
-		fi
-	fi
-	
-	if [[ $OS = "RedHat" ]];
-	then
-		CheckTomcat
-		if [[ $tomcat = "no" ]];
-		then
-			echo -e "\nTomcat 7 not present. Please install before trying again."
-		else
-			echo -e "\nJSS Instance List\n-----------------\n"
-			find $redhattomcatloc/webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///'
-		fi
+		echo -e "\nTomcat 8 not present. Please install before trying again."
+	else
+		echo -e "\nJSS Instance List\n-----------------\n"
+		find $tomcatloc/webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///'
 	fi
 }
 
 SetupTomcatUser()
 {
-	if [[ $OS = "Ubuntu" ]];
-	then
-		export user="tomcat7"
-	fi
-	
-	if [[ $OS = "RedHat" ]];
-	then
-		export user="tomcat"
-	fi
+	export user="tomcat"
 }
 
 SetupLogs()
@@ -525,183 +493,189 @@ InstallJava()
 {
 	if [[ $OS = "Ubuntu" ]];
 	then
-		# Which version of Java did we choose earlier?
-		case $javaversion in
-		
-		7)
-			# Is OpenJDK Java 1.7 present?
-			java7=$(dpkg -l | grep "oracle-java7-installer" >/dev/null && echo "yes" || echo "no")
-		
-			if [[ $java7 = "no" ]];
-			then
-				echo -e "\nOracle Java 7 not present. Installing."
-			
-				echo -e "\nAdding webupd8team repository to list."
-				add-apt-repository -y ppa:webupd8team/java
-				apt-get update -q
+		# Is Oracle Java 1.8 present?
+		java8=$(dpkg -l | grep "oracle-java8-installer" >/dev/null && echo "yes" || echo "no")
 
-				echo -e "\nInstalling Oracle Java 7.\n"
-				echo oracle-java7-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
-				apt-get install -q -y oracle-java7-installer
+		if [[ $java8 = "no" ]];
+		then
+			echo -e "\nOracle Java 8 not present. Installing."
 
-				echo -e "\nSetting Oracle Java 7 to the system default.\n"
-				apt-get install -q -y oracle-java7-set-default
+			echo -e "\nAdding webupd8team repository to list.\n"
+			add-apt-repository -y ppa:webupd8team/java
+			apt-get update -q
 
-				echo -e "\nInstalling Java Cryptography Extension 7\n"
-				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip > $rootwarloc/jce_policy-7.zip
-				unzip $rootwarloc/jce_policy-7.zip
-				cp $rootwarloc/UnlimitedJCEPolicy/* /usr/lib/jvm/java-7-oracle/jre/lib/security
-				rm $rootwarloc/jce_policy-7.zip
-				rm -rf $rootwarloc/UnlimitedJCEPolicy
-			else
-				echo -e "\nOracle Java 7 already installed. Proceeding."
-			fi
-		;;
-		
-		8)
-			# Is Oracle Java 1.8 present?
-			java8=$(dpkg -l | grep "oracle-java8-installer" >/dev/null && echo "yes" || echo "no")
+			echo -e "\nInstalling Oracle Java 8.\n"
+			echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+			apt-get install -q -y oracle-java8-installer
 
-			if [[ $java8 = "no" ]];
-			then
-				echo -e "\nOracle Java 8 not present. Installing."
-
-				echo -e "\nAdding webupd8team repository to list.\n"
-				add-apt-repository -y ppa:webupd8team/java
-				apt-get update -q
-
-				echo -e "\nInstalling Oracle Java 8.\n"
-				echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
-				apt-get install -q -y oracle-java8-installer
-
-				echo -e "\nSetting Oracle Java 8 to the system default.\n"
-				apt-get install -q -y oracle-java8-set-default
-		
-				echo -e "\nInstalling Java Cryptography Extension 8\n"
-				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
-				unzip $rootwarloc/jce_policy-8.zip
-				cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-oracle/jre/lib/security
-				rm $rootwarloc/jce_policy-8.zip
-				rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
-			else
-				echo -e "\nOracle Java 8 already installed. Proceeding."
-			fi
-		;;
-		
-		*)
-			echo -e "\nIncorrect version of Java chosen. Skipping install."
-		;;
-		esac
+			echo -e "\nSetting Oracle Java 8 to the system default.\n"
+			apt-get install -q -y oracle-java8-set-default
+	
+			echo -e "\nInstalling Java Cryptography Extension 8\n"
+			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
+			unzip $rootwarloc/jce_policy-8.zip
+			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-oracle/jre/lib/security
+			rm $rootwarloc/jce_policy-8.zip
+			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
+		else
+			echo -e "\nOracle Java 8 already installed. Proceeding."
+		fi
 	fi
 
 	if [[ $OS = "RedHat" ]];
 	then
-		# Which version of Java did we choose earlier?
-		case $javaversion in
-		
-		7)
-			# Is OpenJDK Java 1.7 present?
-			java7=$(yum -q list installed java-1.7.0-openjdk &>/dev/null && echo "yes" || echo "no" )
+		# Is OpenJDK Java 1.8 present?
+		java8=$(yum -q list installed java-1.8.0-openjdk &>/dev/null && echo "yes" || echo "no" )
 
-			if [[ $java7 = "no" ]];
-			then
-				echo -e "\nOpenJDK 7 not present. Installing."
-				yum -q -y install java-1.7.0-openjdk
-		
-				echo -e "\nInstalling Java Cryptography Extension 7\n"
-				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/7/UnlimitedJCEPolicyJDK7.zip > $rootwarloc/jce_policy-7.zip
-				unzip $rootwarloc/jce_policy-7.zip
-				cp $rootwarloc/UnlimitedJCEPolicy/* /usr/lib/jvm/jre/lib/security
-				rm $rootwarloc/jce_policy-7.zip
-				rm -rf $rootwarloc/UnlimitedJCEPolicy
-			else
-				echo -e "\nOpenJDK 7 already installed. Proceeding."
-			fi
-		;;
-		
-		8)
-			# Is OpenJDK Java 1.8 present?
-			java8=$(yum -q list installed java-1.8.0-openjdk &>/dev/null && echo "yes" || echo "no" )
-
-			if [[ $java8 = "no" ]];
-			then
-				echo -e "\nOpenJDK 8 not present. Installing."
-				yum -q -y install java-1.8.0-openjdk
-		
-				echo -e "\nInstalling Java Cryptography Extension 8\n"
-				curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
-				unzip $rootwarloc/jce_policy-8.zip
-				cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/jre/lib/security
-				rm $rootwarloc/jce_policy-8.zip
-				rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
-			else
-				echo -e "\nOpenJDK 8 already installed. Proceeding."
-			fi
-		;;
-		
-		*)
-			echo -e "\nIncorrect version of Java chosen. Skipping install."
-		;;
-		esac
+		if [[ $java8 = "no" ]];
+		then
+			echo -e "\nOpenJDK 8 not present. Installing."
+			yum -q -y install java-1.8.0-openjdk
+	
+			echo -e "\nInstalling Java Cryptography Extension 8\n"
+			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
+			unzip $rootwarloc/jce_policy-8.zip
+			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/jre/lib/security
+			rm $rootwarloc/jce_policy-8.zip
+			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
+		else
+			echo -e "\nOpenJDK 8 already installed. Proceeding."
+		fi
 	fi
 }
 
 InstallTomcat()
 {
-	if [[ $OS = "Ubuntu" ]];
-	then
-		# Is Tomcat 7 present?
-		tomcat=$(dpkg -l | grep "tomcat7" >/dev/null && echo "yes" || echo "no")
+	# Is Tomcat present?
+	[ -d "$tomcatloc" ] && tomcat="yes" || tomcat="no"
 
-		if [[ $tomcat = "no" ]];
+	if [[ $tomcat = "no" ]];
+	then
+		echo -e "\nTomcat 8 not installed. Installing."
+
+		# Create tomcat group
+		echo -e "\nCreating user group: $user"
+		groupadd $user
+
+		if [[ $OS = "Ubuntu" ]];
 		then
-			echo -e "\nTomcat 7 not present. Installing\n"
-			apt-get install -q -y tomcat7
+			echo -e "\nUbuntu detected."
 		
-			echo -e "\nClearing out Tomcat 7 default ROOT.war installation"
-			rm $ubtomcatloc/webapps/ROOT.war 2>/dev/null
-			rm -rf $ubtomcatloc/webapps/ROOT
+			# Create tomcat user - Ubuntu 14.04 LTS
+			echo -e "\nCreating tomcat user: $user"
+			useradd -s /bin/false -g "$user" -d /opt/tomcat "$user"
 
-			case $javaversion in
-			
-			7)
-				echo -e "\nSetting Tomcat to use OpenJDK 7 in /etc/default/tomcat7"
-				sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-7-oracle|" /etc/default/tomcat7			
-			;;
-			
-			8)
-				echo -e "\nSetting Tomcat to use Oracle Java 8 in /etc/default/tomcat7"
-				sed -i "s|#JAVA_HOME=/usr/lib/jvm/openjdk-6-jdk|JAVA_HOME=/usr/lib/jvm/java-8-oracle|" /etc/default/tomcat7
-			;;
-			
-			esac
+			# Create Upstart script for Ubuntu 14.04 LTS and enable on boot
+			echo -e "\nCreating Ubuntu upstart script: /etc/init/tomcat"
 
-			echo -e "\nStarting Tomcat service\n"
-			TomcatService start
-		else
-			echo -e "\nTomcat already present. Proceeding."
+upstart='description "Tomcat Server"
+
+  start on runlevel [2345]
+  stop on runlevel [!2345]
+  respawn
+  respawn limit 10 5
+
+  setuid tomcat
+  setgid tomcat
+
+  env JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre
+  exec /opt/tomcat8/bin/catalina.sh run
+
+  # cleanup temp directory after stop
+  post-stop script
+    rm -rf $HOME/temp/*
+  end script'
+
+			echo "$upstart" > /etc/init/tomcat.conf
+
+			echo -e "\nEnabling Tomcat 8 service."
+			initctl reload-configuration
 		fi
-	fi
-
-	if [[ $OS = "RedHat" ]];
-	then
-		# Is Tomcat 7 present?
-		tomcat=$(yum -q list installed tomcat &>/dev/null && echo "yes" || echo "no" )
-
-		if [[ $tomcat = "no" ]];
+		
+		if [[ $OS = "RedHat" ]];
 		then
-			echo -e "\nTomcat 7 not present. Installing."
-			yum -q -y install tomcat
-			yum -q -y install apr-devel 
+			# Create tomcat user - RHEL 7.x
+			useradd -M -s /bin/nologin -g "$user" -d /opt/tomcat "$user"
 
-			echo -e "\nEnabling Tomcat to start on system restart\n"
-			systemctl enable tomcat
+			# Create systemd script for RHEL 7.x
+systemd='# Systemd unit file for tomcat
+[Unit]
+Description=Apache Tomcat Web Application Container
+After=syslog.target network.target
 
-			echo -e "\nStarting Tomcat service."
-			TomcatService start
-		else
-			echo -e "\nTomcat already present. Proceeding."
+[Service]
+Type=forking
+
+ExecStart=/opt/tomcat8/bin/startup.sh
+ExecStop=/bin/kill -15 $MAINPID
+
+User=tomcat
+Group=tomcat
+
+[Install]
+WantedBy=multi-user.taret'
+
+			echo "$systemd" > /etc/systemd/system/tomcat.service
+
+			systemctl daemon-reload
 		fi
+
+		# Find latest tomcat version
+		echo -e "\nFinding latest Tomcat 8 version"
+		version=$( curl -s http://tomcat.apache.org/download-80.cgi | grep "<h3 id=\"8." | head -n1 | awk '{gsub("<[^>]*>", "")}1' )
+		echo -e "\nVersion: $version"
+
+		# Work out proper download path
+		path="http://www.apache.org/dist/tomcat/tomcat-8/v${version}/bin/apache-tomcat-${version}.tar.gz"
+
+		# Grab the latest .tar.gz distribution and install to /opt
+		echo -e "\nDownloading and installing latest Tomcat 8"
+		cd /opt
+		wget $path
+		tar -xzf /opt/apache-tomcat-${version}.tar.gz
+		mv /opt/apache-tomcat-${version} "$tomcatloc"
+		rm /opt/apache-tomcat-${version}.tar.gz
+
+		# Configure permissions on tomcat installation
+		echo -e "\nConfiguring Tomcat folder permissions"
+		chown -R $user:$user $tomcatloc
+		chmod g+rwx $tomcatloc/conf
+		chmod g+r $tomcatloc/conf/*
+
+		chmod g+rwx $tomcatloc/webapps
+		chmod g+r $tomcatloc/webapps/*
+		
+		# Configure Tomcat environment variable
+		echo -e "\nSetting Tomcat environment variable"
+		echo "export CATALINA_HOME="${tomcatloc}"" >> ~/.bashrc
+		source ~/.bashrc
+
+		# Create Tomcat setenv.sh configuration file
+setenv='#!/bin/bash
+
+# Tomcat configuration file. Generated by JSS-in-a-Box.
+
+CATALINA_BASE='"'$tomcatloc'"'
+CATALINA_HOME="$CATALINA_BASE"
+CATALINA_OPTS="-Xms1024m -Xmx3072m"
+CATALINA_OPTS="$CATALINA_OPTS -XX:MaxPermSize=512m"
+CATALINA_OPTS="$CATALINA_OPTS -Xss256k"
+CATALINA_OPTS="$CATALINA_OPTS -XX:MaxGCPauseMillis=1500"
+CATALINA_OPTS="$CATALINA_OPTS -XX:GCTimeRatio=9"
+CATALINA_OPTS="$CATALINA_OPTS -Djava.awt.headless=true"
+CATALINA_OPTS="$CATALINA_OPTS -server"
+CATALINA_OPTS="$CATALINA_OPTS -XX:+DisableExplicitGC"
+CATALINA_OPTS="$CATALINA_OPTS -Djava.security.egd=file:/dev/./urandom"'
+
+echo "$setenv" > $tomcatloc/bin/setenv.sh
+chown tomcat:tomcat $tomcatloc/bin/setenv.sh
+chmod 750 $tomcatloc/bin/setenv.sh
+
+		# Clean default tomcat webapps out. We don't require them and could be a security hazard.	
+		echo -e "\nClearing out Tomcat 7 default installations"
+		rm -rf $tomcatloc/webapps/* 2>/dev/null
+	else
+		echo -e "\nTomcat already present. Proceeding."
 	fi
 }
 
@@ -734,9 +708,9 @@ InstallMySQL()
 			echo -e "\nMySQL 5.6 not present. Installing."
 
 			echo -e "\nAdding MySQL 5.6 to yum repo list\n"
-			wget http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm -P $homefolder
-			rpm -ivh mysql-community-release-el7-5.noarch.rpm
-			rm $homefolder/mysql-community-release-el7-5.noarch.rpm
+			wget http://repo.mysql.com/mysql-community-release-el7.rpm -P $homefolder
+			rpm -ivh $homefolder/mysql-community-release-el7.rpm
+			rm $homefolder/mysql-community-release-el7.rpm
 		
 			echo -e "\nInstalling MySQL 5.6\n"
 			yum -q -y install mysql-server
@@ -866,19 +840,6 @@ InstallLetsEncrypt()
 		sudo -H /usr/local/letsencrypt/certbot-auto renew --quiet --no-self-upgrade
 	fi
 
-	# Derive the correct file locations from the current OS
-	if [[ $OS = "Ubuntu" ]];
-	then
-		export sslkeystorepath="$ubtomcatloc/keystore"
-		export server="$ubtomcatloc/conf/server.xml"
-	fi
-	
-	if [[ $OS = "RedHat" ]];
-	then
-		export sslkeystorepath="$redhattomcatloc/keystore"
-		export server="$redhattomcatloc/conf/server.xml"
-	fi
-
 	# Code to generate a Java KeyStore for Tomcat from what's provided by LetsEncrypt
 	# Based on work by Carmelo Scollo (https://melo.myds.me)
 	# https://community.letsencrypt.org/t/how-to-use-the-certificate-for-tomcat/3677/9
@@ -916,27 +877,13 @@ InstallLetsEncrypt()
 	# Tomcat server.xml was previous prepared in the ConfigureMemoryUseage function.
 	# Now we disable HTTP and enable the HTTPS connectors
 
-	if [[ $OS = "Ubuntu" ]];
-	then	
-		echo -e "\nDisabling Tomcat HTTP connector\n"
-		sed -i '77i<!--' $server
-		sed -i '82i-->' $server
+	echo -e "\nDisabling Tomcat HTTP connector\n"
+	sed -i '73i<!--' $server
+	sed -i '78i-->' $server
 
-		echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
-		sed -i '93d' $server
-		sed -i '87d' $server
-	fi
-	
-	if [[ $OS = "RedHat" ]];
-	then
-		echo -e "\nDisabling Tomcat HTTP connector\n"
-		sed -i '74i<!--' $server
-		sed -i '79i-->' $server
-
-		echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
-		sed -i '91d' $server
-		sed -i '85d' $server
-	fi
+	echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
+	sed -i '92d' $server
+	sed -i '83d' $server
 	
 	# We're done here. Start 'er up.
 	TomcatService start
@@ -988,18 +935,9 @@ UpdateLeSSLKeys()
 		echo -e "\nLetsEncrypt option disabled in script. Cannot proceed.\n"
 		return 1
 	else
-		# Derive the correct file locations from the current OS
-		if [[ $OS = "Ubuntu" ]];
-		then
-			export sslkeystorepath="$ubtomcatloc/keystore"
-			export server="$ubtomcatloc/conf/server.xml"
-		fi
-	
-		if [[ $OS = "RedHat" ]];
-		then
-			export sslkeystorepath="$redhattomcatloc/keystore"
-			export server="$redhattomcatloc/conf/server.xml"
-		fi
+		# Derive the correct file locations from the current tomcat install location
+		export sslkeystorepath="$tomcatloc/keystore"
+		export server="$tomcatloc/conf/server.xml"
 
 		# We'll be doing some work with Tomcat so let's stop the service to make sure we don't hurt anything.
 		echo -e "\nStopping Tomcat service\n"
@@ -1050,303 +988,118 @@ UpdateLeSSLKeys()
 
 ConfigureMemoryUsage()
 {
-	# Split into two sections due to OS distribution differences.
+	# Derive the correct file locations from the current OS
+	webapps="$tomcatloc/webapps"
+	server="$tomcatloc/conf/server.xml"
+	sslkeystorepath="$tomcatloc/keystore"
+	server="$tomcatloc/conf/server.xml"
+	tomcatconf="$tomcatloc/bin"
+		
+	# Now we work out the correct memory and connection settings
+	# What's the default MaxPoolSize?
+	MaxPoolSize=$( cat $DataBaseXML | grep MaxPoolSize | sed 's/[^0-9]*//g' )
+	echo -e "\nMax Pool Size : $MaxPoolSize"
+
+	# How many JSS instances do we currently have? We need at least one, so check for that too.
+	NoOfJSSinstances=$( find $webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///' | wc -l )
+	if [ $NoOfJSSinstances -lt 1 ];
+	then
+		NoOfJSSinstances=1
+	fi
+	echo -e "\nNo of current JSS instances: $NoOfJSSinstances"
+
+	# MaxThreads = ( MaxPoolSize x 2.5 ) x no of webapps
+	MaxThreads=$( awk "BEGIN {print ($MaxPoolSize*2.5)*$NoOfJSSinstances}" )
+	echo -e "\nOptimal Max Threads calculated to be: $MaxThreads"
+
+	# Derive the maximum number of SQL connections based on the above information
+	# Formula is: Maximum Pool Size x No of JSS instances plus one ;)
+	MySQLMaxConnections=$( awk "BEGIN {print ($MaxPoolSize*$NoOfJSSinstances)+1}" )
+
+	# Work out the amount of system memory, convert to Mb and then subtract 256Mb
+	# That'll be what we'll allocate to Java as a maximum memory size. OS needs room too!
+	mem=$( grep MemTotal /proc/meminfo | awk '{ print $2 }' )
+	memtotal=$( expr $mem / 1024 )
+	memtotal=$( expr $memtotal - 256 )
+
+	# Well unless we get less than 1024Mb quit as we're in trouble.
+	# JSS will not like running that low so you will HAVE to boost your RAM allocation.
+	# I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
+	if [ $memtotal -lt 1536 ];
+	then
+		echo -e "\nERROR: Not enough memory to allocate to Tomcat"
+		echo -e "\nNeeded minimum memory: 2048"
+		echo -e "\nAvailable memory: $memtotal"
+		echo -e "\nPlease increase available RAM on this server."
+	fi
+
+	echo -e "\nMaximum memory to allocate to Tomcat is: $memtotal Mb"
+
+	# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
+	if [ ! -f "$server.backup" ];
+	then
+		# Configure the Tomcat server.xml. None of this stuff is pretty and could be better. Improvements welcome.
+		# Let's start by backing up the server.xml file in case things go wrong.
 	
+		# REWORK ALL THIS. File is different in Tomcat 8!
+		echo -e "\nBacking up $server file"
+		cp $server $server.backup
+
+		# Delete HTTPS connector settings
+		sed -i '84,90d' $server
+
+		# Replace HTTPS connector settings
+		sed -i '84i\    \<Connector' $server
+		sed -i '85i\    \t\tport="8443" protocol="org.apache.coyote.http11.Http11NioProtocol" executor="tomcatThreadPool"' $server
+		sed -i '86i\    \t\texecutor="tomcatThreadPool"' $server
+		sed -i '87i\    \t\tmaxThreads="150" scheme="https" secure="true"' $server
+		sed -i '88i\    \t\tSSLEnabled="true" keystoreFile="'"$sslkeystorepath/keystore.jks"'" tkeystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
+		sed -i '89i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/"' $server
+		sed -i '90i\    \t\tsslProtocol="TLS" sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1"' $server
+		sed -i '91i\    \t\tclientAuth="false" serverclientAuth="false"/>' $server
+		
+		echo -e "\nEnabling Tomcat shared executor"
+		sed -i '59d' $server
+		sed -i '56d' $server
+	
+		echo -e "\nDisabling Tomcat default HTTP Connector"
+		sed -i '67i<!--' $server
+		sed -i '71i-->' $server
+
+		echo -e "\nEnabling Tomcat HTTP Connector with executor"
+		sed -i '78d' $server
+		sed -i '73d' $server
+		
+		echo -e "\nAdding Max Threads to HTTP connector"
+		sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
+	fi
+	
+	# Now for the settings we'll be periodically adjusting
+	echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads"
+	sed -i 's/maxThreads="150" /maxThreads="'"$MaxThreads"'" /' $server
+
+	# Configure max ram available to Java from what we worked out earlier.
+	echo -e "\nConfiguring Java to use $memtotal as max memory."
+	sed -i 's/-Xmx.*/-Xmx'"$memtotal"'m"/' $tomcatloc/bin/setenv.sh
+
 	if [[ $OS = "Ubuntu" ]];
 	then
-		# Derive the correct file locations from the current OS
-		webapps="$ubtomcatloc/webapps"
-		mycnfloc=$ubmycnfloc
-		tomcatconf="/usr/share/tomcat7/bin"
-		server="$ubtomcatloc/conf/server.xml"
-		sslkeystorepath="$ubtomcatloc/keystore"
-		server="$ubtomcatloc/conf/server.xml"
-		
-		# Now we work out the correct memory and connection settings
-		# What's the default MaxPoolSize?
-		MaxPoolSize=$( cat $DataBaseXML | grep MaxPoolSize | sed 's/[^0-9]*//g' )
-		echo -e "\nMax Pool Size : $MaxPoolSize"
-	
-		# How many JSS instances do we currently have? We need at least one, so check for that too.
-		NoOfJSSinstances=$( find $webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///' | wc -l )
-		if [ $NoOfJSSinstances -lt 1 ];
-		then
-			NoOfJSSinstances=1
-		fi
-		echo -e "\nNo of current JSS instances: $NoOfJSSinstances"
-
-		# MaxThreads = ( MaxPoolSize x 2.5 ) x no of webapps
-		MaxThreads=$( awk "BEGIN {print ($MaxPoolSize*2.5)*$NoOfJSSinstances}" )
-		echo -e "\nOptimal Max Threads calculated to be: $MaxThreads"
-
-		# Derive the maximum number of SQL connections based on the above information
-		# Formula is: Maximum Pool Size x No of JSS instances plus one ;)
-		MySQLMaxConnections=$( awk "BEGIN {print ($MaxPoolSize*$NoOfJSSinstances)+1}" )
-	
-		# Work out the amount of system memory, convert to Mb and then subtract 256Mb
-		# That'll be what we'll allocate to Java as a maximum memory size. OS needs room too!
-		mem=$( grep MemTotal /proc/meminfo | awk '{ print $2 }' )
-		memtotal=$( expr $mem / 1024 )
-		memtotal=$( expr $memtotal - 256 )
-	
-		# Well unless we get less than 1024Mb quit as we're in trouble.
-		# JSS will not like running that low so you will HAVE to boost your RAM allocation.
-		# I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
-		if [ $memtotal -lt 1536 ];
-		then
-			echo -e "\nERROR: Not enough memory to allocate to Tomcat"
-			echo -e "\nNeeded minimum memory: 2048"
-			echo -e "\nAvailable memory: $memtotal"
-			echo -e "\nPlease increase available RAM on this server."
-		fi
-
-		echo -e "\nMaximum memory to allocate to Tomcat is: $memtotal Mb"
-
-		# Tomcat Section
-		
-		# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
-		if [ ! -f "$server.backup" ];
-		then
-			# Configure the Tomcat server.xml. None of this stuff is pretty and could be better. Improvements welcome.
-			# Let's start by backing up the server.xml file in case things go wrong.
-		
-			# THIS secton is all the one off config stuff.
-			echo -e "\nBacking up $server file"
-			cp $server $server.backup
-
-			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS"
-			sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
-
-			echo -e "\nConfiguring HTTPS to use more secure ciphers"
-			sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
-
-			echo -e "\nEnabling Tomcat shared executor"
-			sed -i '62d' $server
-			sed -i '59d' $server
-		
-			echo -e "\nDisabling Tomcat default HTTP Connector"
-			sed -i '70i<!--' $server
-			sed -i '75i-->' $server
-
-			echo -e "\nEnabling Tomcat HTTP Connector with executor"
-			sed -i '82d' $server
-			sed -i '77d' $server
-			
-			echo -e "\nAdding Max Threads to HTTP connector"
-			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
-
-			echo -e "\nAdding executor to HTTPS connector"
-			sed -i 's/<Connector port="8443"/<Connector port="8443" executor="tomcatThreadPool"/' $server
-		fi
-		
-		# Now for the settings we'll be periodically adjusting
-		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads"
-		sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
-
-		echo -e "\nConfiguring HTTPS connector with current maximum threads"
-		sed -i 's/maxThreads="150" scheme="https" secure="true"/maxThreads="'"$MaxThreads"'" scheme="https" secure="true"/' $server
-
 		# MySQL
-
-		if [ ! -f "$mycnfloc.backup" ];
-		then
-			# Backup the my.cnf file
-			echo -e "\nBacking up $server file"
-			cp $mycnfloc $mycnfloc.backup
-			
-			# Configure the max connections in my.cnf (as we worked it out earlier) and remove the hashtag
-			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections"
-			sed -i 's/.max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
-		else
-			echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections"
-			sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc		
-		fi
-
-		# Java
-		
-		echo -e "\nConfiguring Tomcat Java options"
-	
-		# Configure max ram available to Java from what we worked out earlier.
-		# If we don't have a setenv config file, generate one. Otherwise fix what we have.
-		if [ ! -f "$tomcatconf/setenv.sh" ];
-		then
-			echo -e "\nsetenv.sh file missing. Now creating it."
-
-		# I have to not use the code formatting here or this file isn't written out properly.
-
-cat <<'EOF' >> $tomcatconf/setenv.sh
-#!/bin/sh
-
-# setenv.sh config file - generated by jss-in-a-box
-# https://github.com/franton/JSS-In-A-Box/
-
-# This file based on the work found at: https://gist.github.com/terrancesnyder/986029
-
-export CATALINA_OPTS="$CATALINA_OPTS -Xms1024m"
-export CATALINA_OPTS="$CATALINA_OPTS -Xmx3052m"
-export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxPermSize=512m"
-export CATALINA_OPTS="$CATALINA_OPTS -Xss256k"
-export CATALINA_OPTS="$CATALINA_OPTS -XX:MaxGCPauseMillis=1500"
-export CATALINA_OPTS="$CATALINA_OPTS -XX:GCTimeRatio=9"
-export CATALINA_OPTS="$CATALINA_OPTS -Djava.awt.headless=true"
-export CATALINA_OPTS="$CATALINA_OPTS -server"
-export CATALINA_OPTS="$CATALINA_OPTS -XX:+DisableExplicitGC"
-
-# Check for application specific parameters at startup
-if [ -r "$CATALINA_BASE/bin/appenv.sh" ]; then
-  . "$CATALINA_BASE/bin/appenv.sh"
-fi
-
-echo "Using CATALINA_OPTS:"
-for arg in $CATALINA_OPTS
-do
-	echo ">> " $arg
-done
-echo ""
-
-echo "Using JAVA_OPTS:"
-for arg in $JAVA_OPTS
-do
-	echo ">> " $arg
-done
-EOF
-				chmod 755 $tomcatconf/setenv.sh
-			fi
-
-		echo -e "\nConfiguring setenv.sh file to use $memtotal as max memory."
-		sed -i 's/-Xmx.*/-Xmx'"$memtotal"'m"/' $tomcatconf/setenv.sh
-
+		echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections"
+		sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $ubmycnfloc		
 	fi
 
 	if [[ $OS = "RedHat" ]];
-	then
-		webapps="$redhattomcatloc/webapps"
-		mycnfloc=$rhmycnfloc
-		tomcatconf="$redhattomcatloc/conf/tomcat.conf"
-		server="$redhattomcatloc/conf/server.xml"
-		sslkeystorepath="$redhattomcatloc/keystore"
-		server="$redhattomcatloc/conf/server.xml"
-
-		# Now we work out the correct memory and connection settings
-		# What's the default MaxPoolSize?
-		MaxPoolSize=$( cat $DataBaseXML | grep MaxPoolSize | sed 's/[^0-9]*//g' )
-		echo -e "\nMax Pool Size : $MaxPoolSize"
-	
-		# How many JSS instances do we currently have? We need at least one, so check for that too.
-		NoOfJSSinstances=$( find $webapps/* -maxdepth 0 -type d 2>/dev/null | sed -r 's/^.+\///' | wc -l )
-		if [ $NoOfJSSinstances -lt 1 ];
-		then
-			NoOfJSSinstances=1
-		fi
-		echo -e "\nNo of current JSS instances: $NoOfJSSinstances"
-
-		# MaxThreads = ( MaxPoolSize x 2.5 ) x no of webapps
-		MaxThreads=$( awk "BEGIN {print ($MaxPoolSize*2.5)*$NoOfJSSinstances}" )
-		echo -e "\nOptimal Max Threads calculated to be: $MaxThreads"
-
-		# Derive the maximum number of SQL connections based on the above information
-		# Formula is: Maximum Pool Size x No of JSS instances plus one ;)
-		MySQLMaxConnections=$( awk "BEGIN {print ($MaxPoolSize*$NoOfJSSinstances)+1}" )
-	
-		# Work out the amount of system memory, convert to Mb and then subtract 256Mb
-		# That'll be what we'll allocate to Java as a maximum memory size. OS needs room too!
-		mem=$( grep MemTotal /proc/meminfo | awk '{ print $2 }' )
-		memtotal=$( expr $mem / 1024 )
-		memtotal=$( expr $memtotal - 256 )
-	
-		# Well unless we get less than 1024Mb quit as we're in trouble.
-		# JSS will not like running that low so you will HAVE to boost your RAM allocation.
-		# I've been informed by JAMF support that 8Gb is ideal but I've run it on 4Gb without issue.
-		if [ $memtotal -lt 1536 ];
-		then
-			echo -e "\nERROR: Not enough memory to allocate to Tomcat"
-			echo -e "\nNeeded minimum memory: 2048"
-			echo -e "\nAvailable memory: $memtotal"
-			echo -e "\nPlease increase available RAM on this server."
-		fi
-
-		echo -e "\nMaximum memory to allocate to Tomcat is: $memtotal Mb"
-		
-		# Tomcat section
-		
-		# Ok has Tomcat previously had it's server.xml altered by this script? Check for the backup.
-		if [ ! -f "$server.backup" ];
-		then
-			# Configure the Tomcat server.xml. None of this stuff is pretty and could be better. Improvements welcome.
-			# Let's start by backing up the server.xml file in case things go wrong.
-		
-			# THIS secton is all the one off config stuff.
-			echo -e "\nBacking up $server file"
-			cp $server $server.backup
-
-			echo -e "\nConfiguring HTTPS connector to use keystore and more advanced TLS"
-			sed -i '/clientAuth="false" sslProtocol="TLS"/i sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat" ' $server
-
-			echo -e "\nConfiguring HTTPS to use more secure ciphers"
-			sed -i '/clientAuth="false" sslProtocol="TLS"/i ciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/" ' $server
-
-			echo -e "\nEnabling Tomcat shared executor"
-			sed -i '60d' $server
-			sed -i '57d' $server
-		
-			echo -e "\nDisabling Tomcat default HTTP Connector"
-			sed -i '68i<!--' $server
-			sed -i '72i-->' $server
-
-			echo -e "\nEnabling Tomcat HTTP Connector with executor"
-			sed -i '79d' $server
-			sed -i '74d' $server
-			
-			echo -e "\nAdding Max Threads to HTTP connector"
-			sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
-
-			echo -e "\nAdding executor to HTTPS connector"
-			sed -i 's/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol"/<Connector port="8443" protocol="org.apache.coyote.http11.Http11Protocol" executor="tomcatThreadPool"/' $server
-			
-		fi
-		
-		# Now for the settings we'll be periodically adjusting
-		echo -e "\nConfiguring the TomcatThreadPool executor with current maximum threads"
-		sed -i 's/maxThreads="150" minSpareThreads="4"/maxThreads="'"$MaxThreads"'" minSpareThreads="4"/' $server
-
-		echo -e "\nConfiguring HTTPS connector with current maximum threads"
-		sed -i 's/maxThreads="150" SSLEnabled="true"/maxThreads="'"$MaxThreads"'" SSLEnabled="true"/' $server
-		
-		# MySQL section
-	
-		if [ ! -f "$mycnfloc.backup" ];
-		then
-			echo -e "\nBacking up $mycnfloc file"
-			cp $mycnfloc $mycnfloc.backup
-
-			echo "max_connections = $MySQLMaxConnections" >> $mycnfloc
-		else
-			# If the backup exists, we've been here before. Alter the existing file instead.
-			echo -e "\nConfiguring MySQL max connections to: $MySQLMaxConnections"
-			sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $mycnfloc
-		fi
-
-		# Now Tomcat Java settings. RHEL Tomcat uses a tomcat.conf file instead of a setenv.sh script.
-
-		if [ ! -f "$tomcatconf.backup" ];
-		then
-			echo -e "\nBacking up $tomcatconf file\n"
-			cp $tomcatconf $tomcatconf.backup
-		
-			echo -e "\nAppending Tomcat config to $tomcatconf"
-			
-			echo "JAVA_OPTS=-Xms1024m -Xmx"$memtotal"m -XX:MaxPermSize=512m -Xss256k -XX:MaxGCPauseMillis=1500 -XX:GCTimeRatio=9 -Djava.awt.headless=true -server -XX:+DisableExplicitGC" >> $tomcatconf
-			
-		else
-			# Backup exists. Alter the file instead.
-			sed -i 's/-Xmx..../-Xmx'"$memtotal"'/' $tomcatconf
-		fi
+	then	
+		# MySQL	
+		echo -e "\nConfiguring MySQL max connections to: $MySQLMaxConnections"
+		sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $rhmycnfloc
 	fi
 	
 	# Time to restart MySQL and Tomcat
 	TomcatService stop
 	MySQLService restart
-	TomcatService start	
+	TomcatService start
 }
 
 InitialiseServer()
@@ -1375,12 +1128,12 @@ InitialiseServer()
 CreateNewInstance()
 {
 	# Check for presence of Tomcat and MySQL before proceeding
-	CheckTomcat
+	[ -d "$tomcatloc" ] && tomcat="yes" || tomcat="no"
 	CheckMySQL
 	
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
-		echo -e "\nTomcat 7 / MySQL not present. Please install before trying again.\n"
+		echo -e "\nTomcat 8 / MySQL not present. Please install before trying again.\n"
 		return 1
 	fi
 	
@@ -1413,16 +1166,6 @@ CreateNewInstance()
 	
 	# Prep variables for future use based on current OS
 	SetupTomcatUser
-	
-	if [[ $OS = "Ubuntu" ]];
-	then
-		export webapploc="$ubtomcatloc/webapps"
-	fi
-
-	if [[ $OS = "RedHat" ]];
-	then
-		export webapploc="$redhattomcatloc/webapps"
-	fi
 
 	# Create the new database
 	echo -e "\nCreating new database for instance: $instance "
@@ -1437,9 +1180,9 @@ CreateNewInstance()
 	# then move that to the webapps folder.
 	if [[ $instance = "ROOT" ]];
 	then
-		cp $rootwarloc/ROOT.war $webapploc && unzip -oq $webapploc/ROOT.war -d $webapploc/ROOT
+		cp $rootwarloc/ROOT.war $tomcatloc/$webapps && unzip -oq $tomcatloc/$webapps/ROOT.war -d $webapploc/ROOT
 	else
-		cp $rootwarloc/ROOT.war $webapploc/$instance.war && unzip -oq $webapploc/$instance.war -d $webapploc/$instance
+		cp $rootwarloc/ROOT.war $tomcatloc/$webapps/$instance.war && unzip -oq $tomcatloc/$webapps/$instance.war -d $tomcatloc/$webapps/$instance
 	fi
 
 	# Create a specific DataBase.xml file for this new instance
@@ -1460,7 +1203,7 @@ CreateNewInstance()
 
 	# Copy the new file over the top of the existing file.
 	echo -e "\nCopying the replacement DataBase.xml file into new instance: $instance"
-	cp $DataBaseXML $webapploc/$instance/$DataBaseLoc/DataBase.xml
+	cp "$DataBaseXML" "$webapploc"$webapps/$instance/$DataBaseLoc/DataBase.xml
 
 	# Create the instance name and empty log files with an exception for ROOT
 	echo -e "\nCreating log files for new instance: $instance"
@@ -1482,17 +1225,17 @@ CreateNewInstance()
 	echo -e "\nModifying new instance: $instance to point to new log files"
 	if [[ $instance = "ROOT" ]];
 	then	
-		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
 	else
-		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
 	fi
 
 	# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-	chown -R $user:$user $webapploc/$instance.*
+	chown -R $user:$user $webapploc/*
 
 	# Recalculate memory usage since we've made changes
 	ConfigureMemoryUsage
@@ -1501,26 +1244,13 @@ CreateNewInstance()
 DeleteInstance()
 {
 	# Check for presence of Tomcat and MySQL before proceeding
-	CheckTomcat
+	[ -d "$tomcatloc" ] && tomcat="yes" || tomcat="no"
 	CheckMySQL
 
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
-		echo -e "\nTomcat 7 / MySQL not present. Please install before trying again."
+		echo -e "\nTomcat 8 / MySQL not present. Please install before trying again."
 		return 1
-	fi
-
-	# Prep variables for future use based on current OS
-	if [[ $OS = "Ubuntu" ]];
-	then
-		export webapploc="$ubtomcatloc/webapps"
-		export cacheloc="$ubtomcatloc/work/Catalina/localhost"
-	fi
-
-	if [[ $OS = "RedHat" ]];
-	then
-		export webapploc="$redhattomcatloc/webapps"
-		export cacheloc="$redhattomcatloc/work/Catalina/localhost"
 	fi
 
 	# Call function to show all directory names in the tomcat webapps folder
@@ -1531,7 +1261,7 @@ DeleteInstance()
 	read -p "Please enter a JSS instance to delete (or enter to skip) : " instance
 
 	# Does this name already exist?
-	webapps=($(find $webapploc/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
+	webapps=($(find $tomcatloc/webapps/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
 	[[ " ${webapps[@]} " =~ " $instance " ]] && found=true || found=false
 
 	if [[ $found = false ]];
@@ -1554,8 +1284,8 @@ DeleteInstance()
 
 		# Delete the tomcat ROOT.war folder
 		echo -e "\nDeleting Tomcat instance: $instance"
-		rm $webapploc/$instance.war 2>/dev/null
-		rm -rf $webapploc/$instance
+		rm $tomcatloc/webapps/$instance.war 2>/dev/null
+		rm -rf $tomcatloc/webapps/$instance
 
 		# Delete the database
 		echo -e "\nDeleting database for instance: $instance"
@@ -1566,7 +1296,7 @@ DeleteInstance()
 		if [[ $instance = "ROOT" ]];
 		then
 			rm $logfiles/JAMFSoftwareServer.log	2>/dev/null
-			rm $logfiles/jamfChangeManagement.log 2>/dev/null
+			rm $logfiles/JAMFChangeManagement.log 2>/dev/null
 			rm $logfiles/JSSAccess.log 2>/dev/null
 		else
 			rm -rf $logfiles/$instance 2>/dev/null
@@ -1764,24 +1494,13 @@ UploadDatabase()
 UpgradeInstance()
 {
 	# Check for presence of Tomcat and MySQL before proceeding
-	CheckTomcat
+	[ -d "$tomcatloc" ] && tomcat="yes" || tomcat="no"
 	CheckMySQL
 
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
-		echo -e "\nTomcat 7 / MySQL not present. Please install before trying again."
+		echo -e "\nTomcat 8 / MySQL not present. Please install before trying again."
 		return 1
-	fi
-
-	# Prep variables for future use based on current OS
-	if [[ $OS = "Ubuntu" ]];
-	then
-		export webapploc="$ubtomcatloc/webapps"
-	fi
-
-	if [[ $OS = "RedHat" ]];
-	then
-		export webapploc="$redhattomcatloc/webapps"
 	fi
 
 	# Call function to show all directory names in the tomcat webapps folder
@@ -1792,7 +1511,7 @@ UpgradeInstance()
 	read -p "Please enter a JSS instance to upgrade (or enter to skip) : " instance
 
 	# Does this name already exist?.
-	webapps=($(find $webapploc/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
+	webapps=($(find $tomcatloc/webapps/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
 	[[ " ${webapps[@]} " =~ " $instance " ]] && found=true || found=false
 
 	if [[ $found = false ]];
@@ -1815,20 +1534,20 @@ UpgradeInstance()
 
 			# Backup the <instance>/WEB-INF/xml/DataBase.xml file
 			echo -e "\nBacking up DataBase.xml of instance: $instance"
-			cp $webapploc/$instance/$DataBaseLoc/DataBase.xml /tmp
+			cp $tomcatloc/webapps/$instance/$DataBaseLoc/DataBase.xml /tmp
 
 			# Delete the tomcat ROOT.war folder
 			echo -e "\nDeleting Tomcat instance: $instance"
-			rm $webapploc/$instance.war
+			rm $tomcatloc/webapps/$instance.war
 			rm -rf $webapploc/$instance
 
 			# Rename, copy and expand the replacement tomcat ROOT.war file
 			echo -e "\nReplacing Tomcat instance: $instance"
-			cp $rootwarloc/ROOT.war $webapploc/$instance.war && unzip -oq $webapploc/$instance.war -d $webapploc/$instance
+			cp $rootwarloc/ROOT.war $tomcatloc/webapps/$instance.war && unzip -oq $tomcatloc/webapps/$instance.war -d $tomcatloc/webapps/$instance
 			
 			# Wait for allow Tomcat to expand the .war file we copied over.
 			echo -e "\nWaiting for .war file to be expanded"
-			while [ ! -d "$webapploc/$instance" ]
+			while [ ! -d "$tomcatloc/webapps/$instance" ]
 			do
 			   echo -e "Awaiting Tomcat to expand instance: $instance"
 			   sleep 3
@@ -1839,21 +1558,21 @@ UpgradeInstance()
 			echo -e "\nModifying new instance: $instance to point to new log files"
 			if [[ $instance = "ROOT" ]];
 			then	
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
 			else
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
 			fi
 		
 			# Copy back the DataBase.xml file
 			echo -e "\nCopying back DataBase.xml of instance: $instance"
-			mv -f /tmp/DataBase.xml $webapploc/$instance/$DataBaseLoc
+			mv -f /tmp/DataBase.xml $tomcatloc/webapps/$instance/$DataBaseLoc
 
 			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-			chown -R $user:$user $webapploc/$instance.*
+			chown -R $user:$user $tomcatloc/webapps/$instance.*
 
 			# Restart tomcat
 			echo -e "\nRestarting Tomcat service"
@@ -1869,24 +1588,13 @@ UpgradeInstance()
 
 UpgradeAllInstances() {
 	# Check for presence of Tomcat and MySQL before proceeding
-	CheckTomcat
+	[ -d "$tomcatloc" ] && tomcat="yes" || tomcat="no"
 	CheckMySQL
 
 	if [[ $tomcat = "no" || $mysql = "no" ]];
 	then
-		echo -e "\nTomcat 7 / MySQL not present. Please install before trying again."
+		echo -e "\nTomcat 8 / MySQL not present. Please install before trying again."
 		return 1
-	fi
-	
-	# Prep variables for future use based on current OS
-	if [[ $OS = "Ubuntu" ]];
-	then
-		export webapploc="$ubtomcatloc/webapps"
-	fi
-
-	if [[ $OS = "RedHat" ]];
-	then
-		export webapploc="$redhattomcatloc/webapps"
 	fi
 
 	# It does exist. Are they sure? Very very very VERY sure?
@@ -1898,7 +1606,7 @@ UpgradeAllInstances() {
 
 		Y|y)	
 			# Grab an array containing all current JSS instances for processing.
-			webapps=($(find $webapploc/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
+			webapps=($(find $tomcatloc/webapps/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
 		
 			# Stop the tomcat service
 			echo -e "\nStopping Tomcat service.\n"
@@ -1913,16 +1621,16 @@ UpgradeAllInstances() {
 		
 			# Backup the <instance>/WEB-INF/xml/DataBase.xml file
 			echo -e "Backing up DataBase.xml of instance: ${webapps[i]}"
-			mv $webapploc/${webapps[i]}/$DataBaseLoc/DataBase.xml /tmp
+			mv $tomcatloc/webapps/${webapps[i]}/$DataBaseLoc/DataBase.xml /tmp
 
 			# Delete the tomcat ROOT.war folder
 			echo -e "Deleting Tomcat instance: ${webapps[i]}"
-			rm $webapploc/${webapps[i]}.war
-			rm -rf $webapploc/${webapps[i]}
+			rm $tomcatloc/webapps/${webapps[i]}.war
+			rm -rf $tomcatloc/webapps/${webapps[i]}
 
 			# Rename, copy and expand the replacement tomcat ROOT.war file
 			echo -e "Replacing Tomcat instance: ${webapps[i]}"
-			cp $rootwarloc/ROOT.war $webapploc/${webapps[i]}.war && unzip -oq $webapploc/${webapps[i]}.war -d $webapploc/${webapps[i]}
+			cp $rootwarloc/ROOT.war $tomcatloc/webapps/${webapps[i]}.war && unzip -oq $tomcatloc/webapps/${webapps[i]}.war -d $tomcatloc/webapps/${webapps[i]}
 			
 			# Wait for allow Tomcat to expand the .war file we copied over.
 			echo -e "\nWaiting for the .war file to be expanded"
@@ -1936,21 +1644,21 @@ UpgradeAllInstances() {
 			echo -e "\nModifying new instance: $instance to point to new log files"
 			if [[ $instance = "ROOT" ]];
 			then	
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
 			else
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/${webapps[i]}/JAMFChangeManagement.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/${webapps[i]}/JAMFSoftwareServer.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/${webapps[i]}/JSSAccess.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/${webapps[i]}/JAMFChangeManagement.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/${webapps[i]}/JAMFSoftwareServer.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/${webapps[i]}/JSSAccess.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
 			fi
 
 			# Copy back the DataBase.xml file
 			echo -e "Copying back DataBase.xml of instance: ${webapps[i]}"
-			mv -f /tmp/DataBase.xml $webapploc/${webapps[i]}/$DataBaseLoc/
+			mv -f /tmp/DataBase.xml $tomcatloc/webapps/${webapps[i]}/$DataBaseLoc/
 
 			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-			chown -R $user:$user $webapploc/${webapps[i]}.*
+			chown -R $user:$user $tomcatloc/webapps/${webapps[i]}.*
 
 			# Loop finishes here
 			done
