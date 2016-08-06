@@ -56,6 +56,8 @@
 # Version 2.6 - 23rd June 2016	   - Recoded large chunks of the LetsEncrypt code due to them suddenly getting distribution via repo AND changing the name of the binary that does the work.
 # Version 2.7 - 14th July 2016 	   - Added code to make sure that tomcat webapp folders have correct ownership of the appropriate tomcat user.
 # Version 3.0 - 4th August 2016	   - Removed Java 7, upgraded Tomcat to version 8. Refactored all the relevant code and paths to compensate for manual install. Down 300+ lines for same functionality!
+# Version 3.1 - 6th August 2016	   - Cleaned up some embarrassing typos and code swapping to do with LetsEncrypt. Also some interesting Tomcat 8 server.xml changes.
+#									 Big thanks to Cody Butcher for his help on this!
 
 # Set up variables to be used here
 
@@ -80,8 +82,8 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="3.0"
-currentverdate="4th August 2016"
+currentver="3.1"
+currentverdate="6th August 2016"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -622,7 +624,7 @@ WantedBy=multi-user.taret'
 
 		# Find latest tomcat version
 		echo -e "\nFinding latest Tomcat 8 version"
-		version=$( curl -s http://tomcat.apache.org/download-80.cgi | grep "<h3 id=\"8." | head -n1 | awk '{gsub("<[^>]*>", "")}1' )
+		version=$( curl -s http://tomcat.apache.org/download-80.cgi | grep "<h3 id=\"8.0" | head -n1 | awk '{gsub("<[^>]*>", "")}1' )
 		echo -e "\nVersion: $version"
 
 		# Work out proper download path
@@ -813,13 +815,14 @@ InstallLetsEncrypt()
 {
 	# Is LetsEncrypt present?
 	# This one is a git clone, rather than an installation for cross distro reasons. We'll be putting this in /usr/local/letsencrypt
-	if [ ! -d "/usr/local/letsencrypt" ];
+	if [ ! -d "/opt/letsencrypt" ];
 	then
 		echo -e "\nLetsEncrypt not present. Downloading installation script from dl.eff.org.\n"
-		mkdir /usr/local/letsencrypt
-		cd /usr/local/letsencrypt
+		mkdir /opt/letsencrypt
+		cd /opt/letsencrypt
 		wget https://dl.eff.org/certbot-auto
-		sudo -H /usr/local/letsencrypt/certbot-auto
+		chmod +x /opt/letsencrypt/certbot-auto
+		sudo -H /opt/letsencrypt/certbot-auto -n
 		cd $currentdir
 	else
 		echo -e "\nLetsEncrypt is already installed. Proceeding."
@@ -835,9 +838,9 @@ InstallLetsEncrypt()
 	echo -e "\nObtaining Certificate from LetsEncrypt Certificate Authority\n"
 	if [[ $sslTESTMODE = "TRUE" ]];
 	then
-		sudo -H /usr/local/letsencrypt/certbot-auto renew --dry-run
+		sudo -H /opt/letsencrypt/certbot-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos --test-cert
 	else
-		sudo -H /usr/local/letsencrypt/certbot-auto renew --quiet --no-self-upgrade
+		sudo -H /opt/letsencrypt/certbot-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos
 	fi
 
 	# Code to generate a Java KeyStore for Tomcat from what's provided by LetsEncrypt
@@ -846,7 +849,6 @@ InstallLetsEncrypt()
 
 	# Create a keystore folder for Tomcat with the correct permissions
 	mkdir $sslkeystorepath
-	SetupTomcatUser
 	chown $user:$user $sslkeystorepath
 	chmod 755 $sslkeystorepath
 
@@ -878,12 +880,12 @@ InstallLetsEncrypt()
 	# Now we disable HTTP and enable the HTTPS connectors
 
 	echo -e "\nDisabling Tomcat HTTP connector\n"
-	sed -i '73i<!--' $server
-	sed -i '78i-->' $server
+	sed -i '75i<!--' $server
+	sed -i '80i-->' $server
 
 	echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
-	sed -i '92d' $server
-	sed -i '83d' $server
+	sed -i '94d' $server
+	sed -i '86d' $server
 	
 	# We're done here. Start 'er up.
 	TomcatService start
@@ -948,9 +950,9 @@ UpdateLeSSLKeys()
 		echo -e "\nObtaining Certificate from LetsEncrypt Certificate Authority\n"
 		if [[ $sslTESTMODE = "TRUE" ]];
 		then
-			sudo -H /usr/local/letsencrypt/certbot-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos --test-cert
+			sudo -H /opt/letsencrypt/certbot-auto renew --dry-run
 		else
-			sudo -H /usr/local/letsencrypt/certbot-auto certonly --standalone -m $sslemail -d $ssldomain --agree-tos
+			sudo -H /opt/letsencrypt/certbot-auto renew --quiet --no-self-upgrade
 		fi
 
 		# Clean up the old keystore and keys
@@ -1046,17 +1048,18 @@ ConfigureMemoryUsage()
 		cp $server $server.backup
 
 		# Delete HTTPS connector settings
-		sed -i '84,90d' $server
+		sed -i '84,88d' $server
 
 		# Replace HTTPS connector settings
-		sed -i '84i\    \<Connector' $server
-		sed -i '85i\    \t\tport="8443" protocol="org.apache.coyote.http11.Http11NioProtocol" executor="tomcatThreadPool"' $server
-		sed -i '86i\    \t\texecutor="tomcatThreadPool"' $server
+		sed -i '84i<!--' $server
+		sed -i '85i\    \<Connector' $server
+		sed -i '86i\    \t\tport="8443" protocol="HTTP/1.1" executor="tomcatThreadPool"' $server
 		sed -i '87i\    \t\tmaxThreads="150" scheme="https" secure="true"' $server
-		sed -i '88i\    \t\tSSLEnabled="true" keystoreFile="'"$sslkeystorepath/keystore.jks"'" tkeystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
-		sed -i '89i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA/"' $server
-		sed -i '90i\    \t\tsslProtocol="TLS" sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1"' $server
+		sed -i '88i\    \t\tSSLEnabled="true" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
+		sed -i '89i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_128_CBC_SHA"' $server
+		sed -i '90i\    \t\tsslProtocol="TLS" sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" maxPostSize="-1"' $server
 		sed -i '91i\    \t\tclientAuth="false" serverclientAuth="false"/>' $server
+		sed -i '92i-->' $server
 		
 		echo -e "\nEnabling Tomcat shared executor"
 		sed -i '59d' $server
@@ -1072,6 +1075,10 @@ ConfigureMemoryUsage()
 		
 		echo -e "\nAdding Max Threads to HTTP connector"
 		sed -i 's/<Connector executor="tomcatThreadPool"/<Connector executor="tomcatThreadPool" maxThreads="'"$MaxThreads"'"/' $server
+		
+		echo -e "\nDisabling Tomcat Listener settings"
+		sed -i '28i<!--' $server
+		sed -i '30i-->' $server
 	fi
 	
 	# Now for the settings we'll be periodically adjusting
