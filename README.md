@@ -64,14 +64,14 @@ The instructional video below provides more details of operation. NOTE: This is 
 
 ### Software Installed
 
-* JSS
-* Git (used purely for installing LetsEncrypt)
-* Unzip
-* Uncomplicated Firewall (Ubuntu) / FirewallD (Redhat)
-* OpenSSL
-* OpenVMTools
-* Oracle Java 8 (Ubuntu) / openjdk 8 (Redhat)
-* Java Cryptography Extensions
-* Apache Tomcat 8
-* MySQL Server 5.6
-* (optional) LetsEncrypt
+* [JSS](https://www.jamf.com/)
+* [Git](https://git-scm.com/) (used purely for installing LetsEncrypt)
+* [Unzip](http://packages.ubuntu.com/trusty/unzip)
+* [Uncomplicated Firewall](https://wiki.ubuntu.com/UncomplicatedFirewall) (Ubuntu) / [FirewallD](https://fedoraproject.org/wiki/FirewallD) (Redhat)
+* [OpenSSL](https://www.openssl.org/source/)
+* [OpenVMTools](https://github.com/vmware/open-vm-tools)
+* [Oracle Java 8](http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html) (Ubuntu) / [openjdk 8](http://openjdk.java.net/install/) (Redhat)
+* [Java Cryptography Extensions](http://www.oracle.com/technetwork/java/javase/downloads/jce8-download-2133166.html)
+* [Apache Tomcat 8](https://tomcat.apache.org/download-80.cgi)
+* [MySQL Server 5.6](https://dev.mysql.com/downloads/mysql/5.6.html#downloads)
+* (optional) [LetsEncrypt](http://letsencrypt.org)
