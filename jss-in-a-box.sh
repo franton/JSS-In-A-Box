@@ -58,6 +58,8 @@
 # Version 3.0 - 4th August 2016	   - Removed Java 7, upgraded Tomcat to version 8. Refactored all the relevant code and paths to compensate for manual install. Down 300+ lines for same functionality!
 # Version 3.1 - 6th August 2016	   - Cleaned up some embarrassing typos and code swapping to do with LetsEncrypt. Also some interesting Tomcat 8 server.xml changes.
 #									 Big thanks to Cody Butcher for his help on this!
+# Version 3.2 - 17th February 2017 - Fixed some pesky mysql error redirection stuff. Won't be prompted for insecure command line anymore!
+#									 Fixed some very annoying tomcat webapp folder ownership stuff that never worked properly. Apparently.
 
 # Set up variables to be used here
 
@@ -82,8 +84,8 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="3.1"
-currentverdate="6th August 2016"
+currentver="3.2"
+currentverdate="17th February 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -1242,7 +1244,7 @@ CreateNewInstance()
 	fi
 
 	# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-	chown -R $user:$user $webapploc/*
+	chown -R $user:$user $tomcatloc/webapps/
 
 	# Recalculate memory usage since we've made changes
 	ConfigureMemoryUsage
@@ -1477,15 +1479,15 @@ UploadDatabase()
 			db="${dbname%.sql.gz}"
 
 			echo -e "\nDropping existing database for instance: $dbname "
-			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "drop database $db;"
-			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "create database $db;"
+			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "drop database $db;" 2>/dev/null
+			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "create database $db;" 2>/dev/null
 
 			# Upload the selected database dump
 			echo -e "\nImporting database: $dbname"
 			gzip -dc < $rootwarloc/$dbname | mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw $db
 
 			echo -e "\nRe-establishing grants for database: $dbname"
-			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "GRANT ALL ON $db.* TO $dbuser@$mysqlserveraddress IDENTIFIED BY '$dbpass';"
+			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "GRANT ALL ON $db.* TO $dbuser@$mysqlserveraddress IDENTIFIED BY '$dbpass';" 2>/dev/null
 
 			# Recalculate memory usage since we've made changes
 			ConfigureMemoryUsage
@@ -1579,7 +1581,7 @@ UpgradeInstance()
 			mv -f /tmp/DataBase.xml $tomcatloc/webapps/$instance/$DataBaseLoc
 
 			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-			chown -R $user:$user $tomcatloc/webapps/$instance.*
+			chown -R $user:$user $tomcatloc/webapps/
 
 			# Restart tomcat
 			echo -e "\nRestarting Tomcat service"
@@ -1665,7 +1667,7 @@ UpgradeAllInstances() {
 			mv -f /tmp/DataBase.xml $tomcatloc/webapps/${webapps[i]}/$DataBaseLoc/
 
 			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-			chown -R $user:$user $tomcatloc/webapps/${webapps[i]}.*
+			chown -R $user:$user $tomcatloc/webapps/
 
 			# Loop finishes here
 			done
