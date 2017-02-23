@@ -1,6 +1,6 @@
 # JSS-In-A-Box
 
-## The (almost) complete Casper 9 JSS setup script
+## The (almost) complete Jamf Pro JSS setup script
 ## http://www.richard-purves.com/?p=136
 
 ### Introduction
@@ -30,7 +30,7 @@ The only things it doesn't do are:
 
 ### Getting started
 
-This assumes you have an either an Ubuntu 14.04 LTS or a RedHat 7.x server installed with openssh.
+This assumes you have an either an Ubuntu 16.04 LTS or a RedHat 7.x server installed with openssh.
 This also assumes the server is properly configured to see the internet and has a properly set up DNS hostname.
 
 Please do NOT use Ubuntu's minimal iso install. This will miss out lots of key software and this script will fail. Use the "server" download instead.
@@ -65,12 +65,13 @@ The instructional video below provides more details of operation. NOTE: This is 
 ### Software Installed
 
 * JSS
+* Curl (missing from Ubuntu)
 * Git (used purely for installing LetsEncrypt)
 * Unzip
 * Uncomplicated Firewall (Ubuntu) / FirewallD (Redhat)
 * OpenSSL
 * OpenVMTools
-* Oracle Java 8 (Ubuntu) / openjdk 8 (Redhat)
+* OpenJDK 8
 * Java Cryptography Extensions
 * Apache Tomcat 8
 * MySQL Server 5.6

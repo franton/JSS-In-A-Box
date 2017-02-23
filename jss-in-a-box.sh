@@ -61,6 +61,8 @@
 # Version 3.2 - 17th February 2017 - Fixed some pesky mysql error redirection stuff. Won't be prompted for insecure command line anymore!
 #									 Fixed some very annoying tomcat webapp folder ownership stuff that never worked properly. Apparently.
 # Version 3.3 - 23rd February 2017 - Brought the Tomcat HTTPS connector settings into line with Jamf's current documentation.
+# Version 3.5 - 23rd February 2017 - Major update to use Ubuntu 16.04 LTS in place of 14.04 LTS. Java now uses OpenJDK 8 on both OS. Tomcat has a unified systemd launcher. Code simplified.
+#									 Big thanks to Rich Trouton for quickly helping me with the systemd testing today!
 
 # Set up variables to be used here
 
@@ -85,7 +87,7 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="3.3"
+currentver="3.5"
 currentverdate="23rd February 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
@@ -116,13 +118,13 @@ WhichDistAmI()
 		ubuntuVersion=`lsb_release -s -d`
 
 		case $ubuntuVersion in
-			*"Ubuntu 14.04"*)
+			*"Ubuntu 16.04"*)
 				OS="Ubuntu"
 				export OS
 			;;
 
 			*)
-				echo -e "Script requires Ubuntu 14.04 LTS. Exiting."
+				echo -e "Script requires Ubuntu 16.04 LTS. Exiting."
 				exit 1
 			;;
 		esac
@@ -179,28 +181,12 @@ IsROOTwarPresent()
 
 TomcatService()
 {
-	if [[ $OS = "Ubuntu" ]];
-	then
-		initctl $1 tomcat
-	fi
-	
-	if [[ $OS = "RedHat" ]];
-	then
-		systemctl $1 tomcat
-	fi
+	systemctl $1 tomcat
 }
 
 MySQLService()
 {
-	if [[ $OS = "Ubuntu" ]];
-	then
-		service mysql $1
-	fi
-	
-	if [[ $OS = "RedHat" ]];
-	then
-		systemctl $1 mysql
-	fi
+	systemctl $1 mysql
 }
 
 CheckMySQL()
@@ -303,6 +289,37 @@ InstallGit()
 			yum -q -y install git
 		else
 			echo -e "\ngit already present. Proceeding."
+		fi
+	fi
+}
+
+InstallCurl()
+{
+	if [[ $OS = "Ubuntu" ]];
+	then
+		# Is curl present?
+		git=$(dpkg -l | grep -w "curl" >/dev/null && echo "yes" || echo "no")
+
+		if [[ $git = "no" ]];
+		then
+			echo -e "\ncurl not present. Installing\n"
+			apt-get install -q -y curl
+		else
+			echo -e "\ncurl already present. Proceeding."
+		fi
+	fi
+
+	if [[ $OS = "RedHat" ]];
+	then
+		# Is wget present?
+		wget=$(yum -q list installed curl &>/dev/null && echo "yes" || echo "no" )
+
+		if [[ $wget = "no" ]];
+		then
+			echo -e "\nwcurl not present. Installing."
+			yum -q -y install curl
+		else
+			echo -e "\ncurl already present. Proceeding."
 		fi
 	fi
 }
@@ -499,31 +516,21 @@ InstallJava()
 	if [[ $OS = "Ubuntu" ]];
 	then
 		# Is Oracle Java 1.8 present?
-		java8=$(dpkg -l | grep "oracle-java8-installer" >/dev/null && echo "yes" || echo "no")
+		java8=$(dpkg -l | grep "openjdk-8-jre" >/dev/null && echo "yes" || echo "no")
 
 		if [[ $java8 = "no" ]];
 		then
-			echo -e "\nOracle Java 8 not present. Installing."
-
-			echo -e "\nAdding webupd8team repository to list.\n"
-			add-apt-repository -y ppa:webupd8team/java
-			apt-get update -q
-
-			echo -e "\nInstalling Oracle Java 8.\n"
-			echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
-			apt-get install -q -y oracle-java8-installer
-
-			echo -e "\nSetting Oracle Java 8 to the system default.\n"
-			apt-get install -q -y oracle-java8-set-default
+			echo -e "\nOpenJDK 8 not present. Installing."
+			apt-get install -q -y openjdk-8-jre
 	
 			echo -e "\nInstalling Java Cryptography Extension 8\n"
 			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
 			unzip $rootwarloc/jce_policy-8.zip
-			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-oracle/jre/lib/security
+			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security
 			rm $rootwarloc/jce_policy-8.zip
 			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
 		else
-			echo -e "\nOracle Java 8 already installed. Proceeding."
+			echo -e "\nOpenJDK 8 already installed. Proceeding."
 		fi
 	fi
 
@@ -569,41 +576,22 @@ InstallTomcat()
 			# Create tomcat user - Ubuntu 14.04 LTS
 			echo -e "\nCreating tomcat user: $user"
 			useradd -s /bin/false -g "$user" -d /opt/tomcat "$user"
-
-			# Create Upstart script for Ubuntu 14.04 LTS and enable on boot
-			echo -e "\nCreating Ubuntu upstart script: /etc/init/tomcat"
-
-upstart='description "Tomcat Server"
-
-  start on runlevel [2345]
-  stop on runlevel [!2345]
-  respawn
-  respawn limit 10 5
-
-  setuid tomcat
-  setgid tomcat
-
-  env JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre
-  exec /opt/tomcat8/bin/catalina.sh run
-
-  # cleanup temp directory after stop
-  post-stop script
-    rm -rf $HOME/temp/*
-  end script'
-
-			echo "$upstart" > /etc/init/tomcat.conf
-
-			echo -e "\nEnabling Tomcat 8 service."
-			initctl reload-configuration
 		fi
 		
 		if [[ $OS = "RedHat" ]];
 		then
-			# Create tomcat user - RHEL 7.x
-			useradd -M -s /sbin/nologin -g "$user" -d /opt/tomcat "$user"
+			echo -e "\nRedHat detected."
 
-			# Create systemd script for RHEL 7.x
+			# Create tomcat user - RHEL 7.x
+			echo -e "\nCreating tomcat user: $user"
+			useradd -M -s /sbin/nologin -g "$user" -d /opt/tomcat "$user"
+		fi
+
+		# Create systemd script so tomcat can run as a service
+		echo -e "\nCreating systemd script for Tomcat 8"
+		
 systemd='# Systemd unit file for tomcat
+# Created by JSS in a Box
 [Unit]
 Description=Apache Tomcat Web Application Container
 After=syslog.target network.target
@@ -618,12 +606,11 @@ User=tomcat
 Group=tomcat
 
 [Install]
-WantedBy=multi-user.taret'
+WantedBy=multi-user.target
+Alias=tomcat.service'
 
-			echo "$systemd" > /etc/systemd/system/tomcat.service
-
-			systemctl daemon-reload
-		fi
+		echo "$systemd" > /lib/systemd/system/tomcat.service
+		systemctl daemon-reload
 
 		# Find latest tomcat version
 		echo -e "\nFinding latest Tomcat 8 version"
@@ -677,8 +664,11 @@ chown tomcat:tomcat $tomcatloc/bin/setenv.sh
 chmod 750 $tomcatloc/bin/setenv.sh
 
 		# Clean default tomcat webapps out. We don't require them and could be a security hazard.	
-		echo -e "\nClearing out Tomcat 7 default installations"
+		echo -e "\nClearing out Tomcat default installations"
 		rm -rf $tomcatloc/webapps/* 2>/dev/null
+		
+		echo -e "\nEnabling Tomcat to start on system restart"
+		systemctl enable tomcat
 	else
 		echo -e "\nTomcat already present. Proceeding."
 	fi
@@ -694,10 +684,25 @@ InstallMySQL()
 		if [[ $mysql = "no" ]];
 		then
 			echo -e "\nMySQL 5.6 not present. Installing\n"
+
+			# MySQL 5.6 isn't part of the standard Ubuntu 16.04 repo, so we'll have to add that first.
+			echo -e "\nAdding Ubuntu Trusty repo and updating\n"
+			apt install -q -y software-properties-common
+			add-apt-repository 'deb http://archive.ubuntu.com/ubuntu trusty universe'
+			apt-get update
+
+			echo -e "\nSetting MySQL password defaults\n"
 			debconf-set-selections <<< "mysql-server-5.6 mysql-server/root_password password $mysqlpw"
 			debconf-set-selections <<< "mysql-server-5.6 mysql-server/root_password_again password $mysqlpw"
-			apt-get install -q -y mysql-server-5.6
 
+			echo -e "\nInstalling MySQL 5.6\n"
+			apt-get install -q -y mysql-server-5.6
+			
+			echo -e "\nEnabling MySQL to start on system restart"
+			systemctl enable mysql
+
+			echo -e "\nStarting MySQL 5.6"
+			MySQLService start
 		else
 			echo -e "\nMySQL 5.6 already present. Proceeding."
 		fi
@@ -721,7 +726,7 @@ InstallMySQL()
 			yum -q -y install mysql-server
 
 			echo -e "\nEnabling MySQL to start on system restart"
-			systemctl enable mysqld
+			systemctl enable mysql
 
 			echo -e "\nStarting MySQL 5.6"
 			MySQLService start
@@ -898,36 +903,32 @@ InstallLetsEncrypt()
  	# This should run every night at midnight. LE certs last 90 days but quicker is fine as it won't renew.
  	crontab -l | { echo "0 0 * * *	$homefolder/jss-in-a-box.sh -s"; } | crontab -
 	
-	# The following commented out code is the forthcoming systemd replacement for the crontab job above. Ubuntu 14.04 doesn't support it but next versions will.
-	
-#	touch /etc/systemd/system/le-renew.timer
+	# The following commented out code is the forthcoming systemd replacement for the crontab job above.
 
-#cat > /etc/systemd/system/le-renew.timer << LETIMER
-#[Unit]
-#Description=Perform LetsEncrypt tomcat certificate renewal
+lerenew='[Unit]
+Description=Perform LetsEncrypt tomcat certificate renewal
 
-#[Timer]
-#OnCalendar=daily
+[Timer]
+OnCalendar=daily
 
-#[Install]
-#WantedBy=timers.target
-#LETIMER
+[Install]
+WantedBy=timers.target'
 
-#	touch /etc/systemd/system/le-renew.service
+# echo "$lerenew" > /etc/systemd/system/le-renew.timer
 
-#cat > /etc/systemd/system/le-renew.timer << LESERVICE
-#[Unit]
-#Description=Perform LetsEncrypt tomcat certificate renewal
+leservice='[Unit]
+Description=Perform LetsEncrypt tomcat certificate renewal
 
-#[Service]
-#Type=simple
-#Nice=19
-#IOSchedulingClass=2
-#IOSchedulingPriority=7
-#ExecStart="$homefolder"/jss-in-a-box.sh -s
-#LESERVICE
+[Service]
+Type=simple
+Nice=19
+IOSchedulingClass=2
+IOSchedulingPriority=7
+ExecStart="$homefolder"/jss-in-a-box.sh -s'
 
-#	sudo systemctl start le-renew.service
+# echo "$leservice" > /etc/systemd/system/le-renew.timer
+
+# sudo systemctl start le-renew.service
 }
 
 UpdateLeSSLKeys()
@@ -1116,6 +1117,7 @@ InitialiseServer()
 {
 	# This is to make sure the appropriate services and software are installed and configured.
 	InstallGit
+	InstallCurl
 	InstallWget
 	InstallUnzip
 	InstallFirewall
