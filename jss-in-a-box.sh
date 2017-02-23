@@ -60,10 +60,11 @@
 #									 Big thanks to Cody Butcher for his help on this!
 # Version 3.2 - 17th February 2017 - Fixed some pesky mysql error redirection stuff. Won't be prompted for insecure command line anymore!
 #									 Fixed some very annoying tomcat webapp folder ownership stuff that never worked properly. Apparently.
+# Version 3.3 - 23rd February 2017 - Brought the Tomcat HTTPS connector settings into line with Jamf's current documentation.
 
 # Set up variables to be used here
 
-# These variables are user modifiable.
+# These variables are user modifiable. Don't forget to configure firewall settings from Line 737!
 
 export useract="richardpurves"								# Server admin username. Used for home location.
 
@@ -84,8 +85,8 @@ export dbpass="changeit"									# Database password for JSS. Default is "change
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="3.2"
-currentverdate="17th February 2017"
+currentver="3.3"
+currentverdate="23rd February 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -599,7 +600,7 @@ upstart='description "Tomcat Server"
 		if [[ $OS = "RedHat" ]];
 		then
 			# Create tomcat user - RHEL 7.x
-			useradd -M -s /bin/nologin -g "$user" -d /opt/tomcat "$user"
+			useradd -M -s /sbin/nologin -g "$user" -d /opt/tomcat "$user"
 
 			# Create systemd script for RHEL 7.x
 systemd='# Systemd unit file for tomcat
@@ -1044,8 +1045,7 @@ ConfigureMemoryUsage()
 	then
 		# Configure the Tomcat server.xml. None of this stuff is pretty and could be better. Improvements welcome.
 		# Let's start by backing up the server.xml file in case things go wrong.
-	
-		# REWORK ALL THIS. File is different in Tomcat 8!
+
 		echo -e "\nBacking up $server file"
 		cp $server $server.backup
 
@@ -1055,13 +1055,14 @@ ConfigureMemoryUsage()
 		# Replace HTTPS connector settings
 		sed -i '84i<!--' $server
 		sed -i '85i\    \<Connector' $server
-		sed -i '86i\    \t\tport="8443" protocol="HTTP/1.1" executor="tomcatThreadPool"' $server
-		sed -i '87i\    \t\tmaxThreads="150" scheme="https" secure="true"' $server
-		sed -i '88i\    \t\tSSLEnabled="true" keystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
-		sed -i '89i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,TLS_RSA_WITH_AES_128_CBC_SHA"' $server
-		sed -i '90i\    \t\tsslProtocol="TLS" sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1" maxPostSize="-1"' $server
-		sed -i '91i\    \t\tclientAuth="false" serverclientAuth="false"/>' $server
-		sed -i '92i-->' $server
+		sed -i '86i\    \t\tport="8443" SSLEnabled="true" maxHttpHeaderSize="8192"' $server
+		sed -i '87i\    \t\tmaxPostSize="-1" maxThreads="150" minSpareThreads="25"' $server
+		sed -i '88i\    \t\tmaxSpareThreads="75" enableLookups="false" disableUploadTimeout="true"' $server
+		sed -i '89i\    \t\tacceptCount="100" scheme="https" secure="true" clientAuth="false"' $server
+		sed -i '90i\    \t\tsslProtocol="TLS" sslEnabledProtocols="TLSv1.2, TLSv1.1, TLSv1"' $server
+		sed -i '91i\    \t\tkeystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
+		sed -i '92i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA"' $server
+		sed -i '93i-->' $server
 		
 		echo -e "\nEnabling Tomcat shared executor"
 		sed -i '59d' $server
