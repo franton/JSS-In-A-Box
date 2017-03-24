@@ -63,6 +63,9 @@
 # Version 3.3 - 23rd February 2017 - Brought the Tomcat HTTPS connector settings into line with Jamf's current documentation.
 # Version 3.5 - 23rd February 2017 - Major update to use Ubuntu 16.04 LTS in place of 14.04 LTS. Java now uses OpenJDK 8 on both OS. Tomcat has a unified systemd launcher. Code simplified.
 #									 Big thanks to Rich Trouton for quickly helping me with the systemd testing today!
+# Version 4.0 - 21st March 2017    - Change MySQL to install 5.7.14 or better with the release of JSS 9.98. Please note new password complexity requirements for db's!
+#								   - Also fixed DUMB deltarpm bug. Removed MaxPermGen setting for Tomcat as Java 8 doesn't support it.
+#								   - Replaced LetsEncrypt crontab with a systemd job. OpenJDK replaced with Oracle for BOTH OS platforms due to CPU hammering issues.
 
 # Set up variables to be used here
 
@@ -73,22 +76,25 @@ export useract="richardpurves"								# Server admin username. Used for home loc
 export letsencrypt="FALSE"									# Set this to TRUE if you are going to use LetsEncrypt as your HTTPS Certificate Authority.
 export sslTESTMODE="TRUE"									# Set this to FALSE when you're confident it's generating proper certs for you
 export httpsredirect="FALSE"								# Set this to TRUE if you want your JSS to appear to be on port 443 using HTTPS
-export ssldomain="jssinabox.westeurope.cloudapp.azure.com"	# Domain name for the SSL certificates
+export ssldomain="jssinabox.domain.com"						# Domain name for the SSL certificates
 export sslemail="richard at richard-purves.com"				# E-mail address for the SSL CA
 export sslkeypass="changeit"								# Password to the keystore. Default is "changeit". Please change it!
 
 export mysqluser="root"										# MySQL root account
-export mysqlpw="changeit"									# MySQL root account password. Please change it!
+export mysqlpw="Changeit1!"									# MySQL root account password. Please change it and note security requirements below:
+															# At least one upper case letter, one lower case letter, 
+															# one digit, and one special character
+															# and a minimum length of at least 8 characters.
 export mysqlserveraddress="localhost" 						# IP/Hostname of MySQL server. Default is local server.
 
 export dbuser="jamfsoftware"								# Database username for JSS
-export dbpass="changeit"									# Database password for JSS. Default is "changeit". Please change it!
+export dbpass="Changeit1!"									# Database password for JSS. Default is "changeit". Please change it and see MySQL restrictions above.
 
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="3.5"
-currentverdate="23rd February 2017"
+currentver="4.0"
+currentverdate="21st March 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -150,7 +156,7 @@ WhichDistAmI()
 	# Last check is to see if we got a bite or not
 	if [[ $OS != "Ubuntu" && $OS != "RedHat" ]];
 	then
-		echo -e "Script requires either Ubuntu 14.04 LTS or RHEL 7.x. Exiting."
+		echo -e "Script requires either Ubuntu 16.04 LTS or RHEL 7.x. Exiting."
 		exit 1
 	fi
 }
@@ -186,14 +192,22 @@ TomcatService()
 
 MySQLService()
 {
-	systemctl $1 mysql
+	if [[ $OS = "Ubuntu" ]];
+	then
+		systemctl $1 mysql
+	fi
+
+	if [[ $OS = "RedHat" ]];
+	then
+		systemctl $1 mysqld
+	fi
 }
 
 CheckMySQL()
 {
 	if [[ $OS = "Ubuntu" ]];
 	then
-		export mysql=$(dpkg -l | grep "mysql-server-5.6" >/dev/null && echo "yes" || echo "no")
+		export mysql=$(dpkg -l | grep "mysql-server" >/dev/null && echo "yes" || echo "no")
 	fi
 	
 	if [[ $OS = "RedHat" ]];
@@ -249,10 +263,10 @@ UpdatePkgMgr()
 	# Is the delta RPM module installed?
 	deltarpm=$(yum -q list installed deltarpm &>/dev/null && echo "yes" || echo "no")
 
-		if [[ $git = "no" ]];
+		if [[ $deltarpm = "no" ]];
 		then
 			echo -e "\nInstalling Delta RPM functionality\n"
-			yum install -y deltarpm
+			yum -q -y install deltarpm
 		else
 			echo -e "\nDelta RPM already present. Proceeding."
 		fi
@@ -516,42 +530,70 @@ InstallJava()
 	if [[ $OS = "Ubuntu" ]];
 	then
 		# Is Oracle Java 1.8 present?
-		java8=$(dpkg -l | grep "openjdk-8-jre" >/dev/null && echo "yes" || echo "no")
+		java8=$(dpkg -l | grep "oracle-java8-installer" >/dev/null && echo "yes" || echo "no")
 
 		if [[ $java8 = "no" ]];
 		then
-			echo -e "\nOpenJDK 8 not present. Installing."
-			apt-get install -q -y openjdk-8-jre
+			echo -e "\nOracle Java 8 not present. Installing."
+			apt install -q -y software-properties-common
+
+			echo -e "\nAdding webupd8team repository to list.\n"
+			add-apt-repository -y ppa:webupd8team/java
+			apt-get update -q
+
+			echo -e "\nInstalling Oracle Java 8.\n"
+			echo oracle-java8-installer shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+			apt-get install -q -y oracle-java8-installer
+
+			echo -e "\nSetting Oracle Java 8 to the system default.\n"
+			apt-get install -q -y oracle-java8-set-default
+
+			echo -e "\nSetting JAVA_HOME to use Oracle Java 8.\n"
+			echo "JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre/bin/java " >> /etc/environment
 	
 			echo -e "\nInstalling Java Cryptography Extension 8\n"
 			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
 			unzip $rootwarloc/jce_policy-8.zip
-			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/security
+			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-oracle/jre/lib/security
 			rm $rootwarloc/jce_policy-8.zip
 			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
 		else
-			echo -e "\nOpenJDK 8 already installed. Proceeding."
+			echo -e "\nOracle Java 8 already installed. Proceeding."
 		fi
 	fi
 
 	if [[ $OS = "RedHat" ]];
 	then
-		# Is OpenJDK Java 1.8 present?
-		java8=$(yum -q list installed java-1.8.0-openjdk &>/dev/null && echo "yes" || echo "no" )
+		# Is Oracle Java 1.8 present?
+		java8=$( [ -d "/usr/java" ] && echo "yes" || echo "no" )
 
 		if [[ $java8 = "no" ]];
 		then
-			echo -e "\nOpenJDK 8 not present. Installing."
-			yum -q -y install java-1.8.0-openjdk
-	
+			echo -e "\nOracle Java 8 not present. Installing."
+			
+			echo -e "\nFinding latest RPM download link.\n"
+			dl=$( curl -s "https://www.java.com/en/download/manual.jsp" | grep "x64 RPM" | grep -Eo "(http)://[a-zA-Z0-9./?=_-]*" | awk "NR>1{print $1}" )
+
+			echo -e "\nDownloading latest Oracle Java RPM\n"
+			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" "$dl" > $rootwarloc/oracle-java.rpm
+
+			echo -e "\nInstalling Oracle Java RPM\n"
+			rpm -ivh $rootwarloc/oracle-java.rpm
+			
+			echo -e "\nCleaning up downloaded files\n"
+			rm $rootwarloc/oracle-java.rpm
+			
+			echo -e "\nSetting JAVA_HOME to use Oracle Java 8.\n"
+			echo "JAVA_HOME=/usr/java/default/bin/java" >> /etc/environment
+				
 			echo -e "\nInstalling Java Cryptography Extension 8\n"
 			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
 			unzip $rootwarloc/jce_policy-8.zip
-			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/jre/lib/security
+			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/java/default/lib/security
 			rm $rootwarloc/jce_policy-8.zip
 			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
 		else
-			echo -e "\nOpenJDK 8 already installed. Proceeding."
+			echo -e "\nOracle 8 already installed. Proceeding."
 		fi
 	fi
 }
@@ -650,7 +692,6 @@ setenv='#!/bin/bash
 CATALINA_BASE='"'$tomcatloc'"'
 CATALINA_HOME="$CATALINA_BASE"
 CATALINA_OPTS="-Xms1024m -Xmx3072m"
-CATALINA_OPTS="$CATALINA_OPTS -XX:MaxPermSize=512m"
 CATALINA_OPTS="$CATALINA_OPTS -Xss256k"
 CATALINA_OPTS="$CATALINA_OPTS -XX:MaxGCPauseMillis=1500"
 CATALINA_OPTS="$CATALINA_OPTS -XX:GCTimeRatio=9"
@@ -678,63 +719,64 @@ InstallMySQL()
 {
 	if [[ $OS = "Ubuntu" ]];
 	then
-		# Is MySQL 5.6 present?
-		mysql=$(dpkg -l | grep "mysql-server-5.6" >/dev/null && echo "yes" || echo "no")
+		# Is MySQL 5.7 present?
+		mysql=$(dpkg -l | grep "mysql-server-5.7" >/dev/null && echo "yes" || echo "no")
 
 		if [[ $mysql = "no" ]];
 		then
-			echo -e "\nMySQL 5.6 not present. Installing\n"
+			echo -e "\nMySQL 5.7 not present. Installing\n"
 
-			# MySQL 5.6 isn't part of the standard Ubuntu 16.04 repo, so we'll have to add that first.
-			echo -e "\nAdding Ubuntu Trusty repo and updating\n"
-			apt install -q -y software-properties-common
-			add-apt-repository 'deb http://archive.ubuntu.com/ubuntu trusty universe'
-			apt-get update
+			echo -e "\nPreconfiguration of MySQL repo before adding to system\n"
+			export DEBIAN_FRONTEND=noninteractive
+			debconf-set-selections <<< "mysql-server-5.7 mysql-server/root_password password $mysqlpw"
+			debconf-set-selections <<< "mysql-server-5.7 mysql-server/root_password_again password $mysqlpw"
 
-			echo -e "\nSetting MySQL password defaults\n"
-			debconf-set-selections <<< "mysql-server-5.6 mysql-server/root_password password $mysqlpw"
-			debconf-set-selections <<< "mysql-server-5.6 mysql-server/root_password_again password $mysqlpw"
+			echo -e "\nAdding MySQL APT repo to system\n"
+			wget https://dev.mysql.com/get/mysql-apt-config_0.8.3-1_all.deb -P $homefolder
+			dpkg -i $homefolder/mysql-apt-config_0.8.3-1_all.deb
+			apt-get update -q
 
-			echo -e "\nInstalling MySQL 5.6\n"
-			apt-get install -q -y mysql-server-5.6
+			echo -e "\nInstalling MySQL 5.7\n"
+			apt-get install -q -y mysql-server
 			
 			echo -e "\nEnabling MySQL to start on system restart"
 			systemctl enable mysql
 
-			echo -e "\nStarting MySQL 5.6"
+			echo -e "\nStarting MySQL 5.7"
 			MySQLService start
 		else
-			echo -e "\nMySQL 5.6 already present. Proceeding."
+			echo -e "\nMySQL 5.7 already present. Proceeding."
 		fi
 	fi
 
 	if [[ $OS = "RedHat" ]];
 	then	
-		# Is MySQL 5.6 present?
+		# Is MySQL 5.7 present?
 		mysql=$(yum -q list installed mysql-community-server &>/dev/null && echo "yes" || echo "no")
 
 		if [[ $mysql = "no" ]];
 		then
-			echo -e "\nMySQL 5.6 not present. Installing."
+			echo -e "\nMySQL 5.7 not present. Installing."
 
-			echo -e "\nAdding MySQL 5.6 to yum repo list\n"
-			wget http://repo.mysql.com/mysql-community-release-el7.rpm -P $homefolder
-			rpm -ivh $homefolder/mysql-community-release-el7.rpm
-			rm $homefolder/mysql-community-release-el7.rpm
+			echo -e "\nAdding MySQL 5.7 to yum repo list\n"
+			wget https://dev.mysql.com/get/mysql57-community-release-el7-9.noarch.rpm -P $homefolder
+			rpm -ivh $homefolder/mysql57-community-release-el7-9.noarch.rpm
+			rm $homefolder/mysql57-community-release-el7-9.noarch.rpm
 		
-			echo -e "\nInstalling MySQL 5.6\n"
-			yum -q -y install mysql-server
+			echo -e "\nInstalling MySQL 5.7\n"
+			yum -y --nogpgcheck install mysql-community-server
 
 			echo -e "\nEnabling MySQL to start on system restart"
-			systemctl enable mysql
+			systemctl enable mysqld
 
-			echo -e "\nStarting MySQL 5.6"
+			echo -e "\nStarting MySQL 5.7"
 			MySQLService start
 		
-			echo -e "\nSecuring MySQL 5.6\n"
-			mysqladmin -u root password $mysqlpw
+			echo -e "\nChanging MySQL 5.7 root account password\n"						
+			temppw=$( grep 'temporary password' /var/log/mysqld.log | awk '{ print $11 }' )
+			mysql -h$mysqlserveraddress -u$mysqluser -p$temppw --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$mysqlpw';" 2>/dev/null
 		else
-			echo -e "\nMySQL 5.6 already present. Proceeding."
+			echo -e "\nMySQL 5.7 already present. Proceeding."
 		fi
 	fi
 }
@@ -822,7 +864,7 @@ SetupFirewall()
 InstallLetsEncrypt()
 {
 	# Is LetsEncrypt present?
-	# This one is a git clone, rather than an installation for cross distro reasons. We'll be putting this in /usr/local/letsencrypt
+	# This one is a git clone, rather than an installation for cross distro reasons. We'll be putting this in /opt/letsencrypt
 	if [ ! -d "/opt/letsencrypt" ];
 	then
 		echo -e "\nLetsEncrypt not present. Downloading installation script from dl.eff.org.\n"
@@ -901,12 +943,13 @@ InstallLetsEncrypt()
 	# Oh wait, we have to set up a periodic renewal since LetsEncrypt doesn't do that for Tomcat
  	# (at time of coding - 23rd June 2016)
  	# This should run every night at midnight. LE certs last 90 days but quicker is fine as it won't renew.
- 	crontab -l | { echo "0 0 * * *	$homefolder/jss-in-a-box.sh -s"; } | crontab -
+ 	# crontab -l | { echo "0 0 * * *	$homefolder/jss-in-a-box.sh -s"; } | crontab -
 	
-	# The following commented out code is the forthcoming systemd replacement for the crontab job above.
+	# We must set up a recurring job to renew the certs using systemd.
+	# Using https://mjanja.ch/2015/06/replacing-cron-jobs-with-systemd-timers/ as a handy resource
 
 lerenew='[Unit]
-Description=Perform LetsEncrypt tomcat certificate renewal
+Description=LetsEncrypt Tomcat certificate renewal
 
 [Timer]
 OnCalendar=daily
@@ -914,10 +957,10 @@ OnCalendar=daily
 [Install]
 WantedBy=timers.target'
 
-# echo "$lerenew" > /etc/systemd/system/le-renew.timer
+	echo "$lerenew" > /etc/systemd/system/le-renew.timer
 
 leservice='[Unit]
-Description=Perform LetsEncrypt tomcat certificate renewal
+Description=LetsEncrypt Tomcat certificate renewal
 
 [Service]
 Type=simple
@@ -926,9 +969,11 @@ IOSchedulingClass=2
 IOSchedulingPriority=7
 ExecStart="$homefolder"/jss-in-a-box.sh -s'
 
-# echo "$leservice" > /etc/systemd/system/le-renew.timer
+	echo "$leservice" > /etc/systemd/system/le-renew.service
 
-# sudo systemctl start le-renew.service
+	# Files are in place. Start the timer and enable it for system reboots too.
+	systemctl start system-backup.timer
+	systemctl enable system-backup.timer
 }
 
 UpdateLeSSLKeys()
