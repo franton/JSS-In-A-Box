@@ -64,7 +64,7 @@
 # Version 3.5 - 23rd February 2017 - Major update to use Ubuntu 16.04 LTS in place of 14.04 LTS. Java now uses OpenJDK 8 on both OS. Tomcat has a unified systemd launcher. Code simplified.
 #									 Big thanks to Rich Trouton for quickly helping me with the systemd testing today!
 # Version 4.0 - 21st March 2017    - Change MySQL to install 5.7.14 or better with the release of JSS 9.98. Please note new password complexity requirements for db's!
-#								   - Also fixed DUMB deltarpm bug. Removed MaxPermGen setting for Tomcat as Java 8 doesn't support it.
+#								   - Also fixed DUMB deltarpm bug. Removed MaxPermGen setting for Tomcat as Java 8 doesn't support it. Replaced with MetaspaceSize stuff.
 #								   - Replaced LetsEncrypt crontab with a systemd job. OpenJDK replaced with Oracle for BOTH OS platforms due to CPU hammering issues.
 
 # Set up variables to be used here
@@ -693,6 +693,8 @@ CATALINA_BASE='"'$tomcatloc'"'
 CATALINA_HOME="$CATALINA_BASE"
 CATALINA_OPTS="-Xms1024m -Xmx3072m"
 CATALINA_OPTS="$CATALINA_OPTS -Xss256k"
+CATALINA_OPTS="$CATALINA_OPTS -XX:MetaspaceSize=512m"
+CATALINA_OPTS="$CATALINA_OPTS -XX:MaxMetaspaceSize=3072m"
 CATALINA_OPTS="$CATALINA_OPTS -XX:MaxGCPauseMillis=1500"
 CATALINA_OPTS="$CATALINA_OPTS -XX:GCTimeRatio=9"
 CATALINA_OPTS="$CATALINA_OPTS -Djava.awt.headless=true"
@@ -1137,6 +1139,7 @@ ConfigureMemoryUsage()
 	# Configure max ram available to Java from what we worked out earlier.
 	echo -e "\nConfiguring Java to use $memtotal as max memory."
 	sed -i 's/-Xmx.*/-Xmx'"$memtotal"'m"/' $tomcatloc/bin/setenv.sh
+	sed -i 's/-XX:MaxMetaspaceSize=.*/-XX:MaxMetaspaceSize='"$memtotal"'m"/' $tomcatloc/bin/setenv.sh
 
 	if [[ $OS = "Ubuntu" ]];
 	then
