@@ -71,8 +71,8 @@ The instructional video below provides more details of operation. NOTE: This is 
 * Uncomplicated Firewall (Ubuntu) / FirewallD (Redhat)
 * OpenSSL
 * OpenVMTools
-* OpenJDK 8
+* Oracle Java 8
 * Java Cryptography Extensions
-* Apache Tomcat 8
-* MySQL Server 5.6
+* Apache Tomcat 8.0x
+* MySQL Server 5.7
 * (optional) LetsEncrypt
