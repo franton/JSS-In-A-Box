@@ -66,6 +66,8 @@
 # Version 4.0 - 21st March 2017    - Change MySQL to install 5.7.14 or better with the release of JSS 9.98. Please note new password complexity requirements for db's!
 #								   - Also fixed DUMB deltarpm bug. Removed MaxPermGen setting for Tomcat as Java 8 doesn't support it. Replaced with MetaspaceSize stuff.
 #								   - Replaced LetsEncrypt crontab with a systemd job. OpenJDK replaced with Oracle for BOTH OS platforms due to CPU hammering issues.
+# Version 4.1 - 27th March 2017    - Whoops, forgot to clean up a file. Thrown in some extra commands for db integrity checking post upload of database dump file.
+#								   - DB check code thanks to Neil Martin: https://soundmacguy.wordpress.com/2017/03/27/jamf-pro-9-98-on-windows-migrating-to-mysql-5-7/
 
 # Set up variables to be used here
 
@@ -737,6 +739,7 @@ InstallMySQL()
 			wget https://dev.mysql.com/get/mysql-apt-config_0.8.3-1_all.deb -P $homefolder
 			dpkg -i $homefolder/mysql-apt-config_0.8.3-1_all.deb
 			apt-get update -q
+			rm $homefolder/mysql-apt-config_0.8.3-1_all.deb
 
 			echo -e "\nInstalling MySQL 5.7\n"
 			apt-get install -q -y mysql-server
@@ -1487,6 +1490,9 @@ UploadDatabase()
 
 					echo -e "\nRe-establishing grants for database: ${databases[i]}"
 					mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "GRANT ALL ON $db.* TO $dbuser@$mysqlserveraddress IDENTIFIED BY '$dbpass';" 2>/dev/null
+					
+					echo -e "\nRepair and Optimise uploaded database: ${databases[i]}"
+					mysqlcheck -h$mysqlserveraddress -u$mysqluser -p$mysqlpw --auto-repair --optimize $db
 				done
 
 				# Recalculate memory usage since we've made changes
