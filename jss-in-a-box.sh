@@ -1442,12 +1442,12 @@ DumpDatabase()
 
 UploadDatabase()
 {
-	# Is MySQL 5.6 present?
+	# Is MySQL 5.7 present?
 	CheckMySQL
 
 	if [[ $mysql = "no" ]];
 	then
-		echo -e "\nMySQL 5.6 not installed. Please install before trying again.\n"
+		echo -e "\nMySQL 5.7 not installed. Please install before trying again.\n"
 		return 1
 	fi
 	
@@ -1492,7 +1492,7 @@ UploadDatabase()
 					mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "GRANT ALL ON $db.* TO $dbuser@$mysqlserveraddress IDENTIFIED BY '$dbpass';" 2>/dev/null
 					
 					echo -e "\nRepair and Optimise uploaded database: ${databases[i]}"
-					mysqlcheck -h$mysqlserveraddress -u$mysqluser -p$mysqlpw --auto-repair --optimize $db
+					mysqlcheck -h$mysqlserveraddress -u$mysqluser -p$mysqlpw --auto-repair --optimize $db 2>&1
 				done
 
 				# Recalculate memory usage since we've made changes
@@ -1545,6 +1545,9 @@ UploadDatabase()
 
 			echo -e "\nRe-establishing grants for database: $dbname"
 			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "GRANT ALL ON $db.* TO $dbuser@$mysqlserveraddress IDENTIFIED BY '$dbpass';" 2>/dev/null
+
+			echo -e "\nRepair and Optimise uploaded database: ${databases[i]}"
+			mysqlcheck -h$mysqlserveraddress -u$mysqluser -p$mysqlpw --auto-repair --optimize $db 2>/dev/null
 
 			# Recalculate memory usage since we've made changes
 			ConfigureMemoryUsage
