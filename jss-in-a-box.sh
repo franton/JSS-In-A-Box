@@ -68,6 +68,7 @@
 #								   - Replaced LetsEncrypt crontab with a systemd job. OpenJDK replaced with Oracle for BOTH OS platforms due to CPU hammering issues.
 # Version 4.1 - 27th March 2017    - Whoops, forgot to clean up a file. Thrown in some extra commands for db integrity checking post upload of database dump file.
 #								   - DB check code thanks to Neil Martin: https://soundmacguy.wordpress.com/2017/03/27/jamf-pro-9-98-on-windows-migrating-to-mysql-5-7/
+# Version 4.2 - 9th May 2017       - Fixed LetsEncrypt bug caused by deleting the wrong line in Tomcat server.xml file
 
 # Set up variables to be used here
 
@@ -95,8 +96,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.0"
-currentverdate="21st March 2017"
+currentver="4.2"
+currentverdate="9th May 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -939,7 +940,7 @@ InstallLetsEncrypt()
 	sed -i '80i-->' $server
 
 	echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
-	sed -i '94d' $server
+	sed -i '95d' $server
 	sed -i '86d' $server
 	
 	# We're done here. Start 'er up.
@@ -1387,12 +1388,12 @@ DeleteInstance()
 
 DumpDatabase()
 {
-	# Is MySQL 5.6 present?
+	# Is MySQL 5.7 present?
 	CheckMySQL
 
 	if [[ $mysql = "no" ]];
 	then
-		echo -e "\nMySQL 5.6 not installed. Please install before trying again.\n"
+		echo -e "\nMySQL 5.7 not installed. Please install before trying again.\n"
 		return 1
 	fi
 
