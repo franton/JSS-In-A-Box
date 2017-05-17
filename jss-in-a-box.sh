@@ -69,6 +69,7 @@
 # Version 4.1 - 27th March 2017    - Whoops, forgot to clean up a file. Thrown in some extra commands for db integrity checking post upload of database dump file.
 #								   - DB check code thanks to Neil Martin: https://soundmacguy.wordpress.com/2017/03/27/jamf-pro-9-98-on-windows-migrating-to-mysql-5-7/
 # Version 4.2 - 9th May 2017       - Fixed LetsEncrypt bug caused by deleting the wrong line in Tomcat server.xml file
+# Version 4.3 - 17th May 2017	   - Fixed code for new instance creation. Some of the variables were pointing to non-existant file paths. I do wonder what I was thinking at the time. Let's see if people read this.
 
 # Set up variables to be used here
 
@@ -96,8 +97,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.2"
-currentverdate="9th May 2017"
+currentver="4.3"
+currentverdate="17th May 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -1244,9 +1245,9 @@ CreateNewInstance()
 	# then move that to the webapps folder.
 	if [[ $instance = "ROOT" ]];
 	then
-		cp $rootwarloc/ROOT.war $tomcatloc/$webapps && unzip -oq $tomcatloc/$webapps/ROOT.war -d $webapploc/ROOT
+		cp $rootwarloc/ROOT.war $webapploc && unzip -oq $webapploc/ROOT.war -d $webapploc/ROOT
 	else
-		cp $rootwarloc/ROOT.war $tomcatloc/$webapps/$instance.war && unzip -oq $tomcatloc/$webapps/$instance.war -d $tomcatloc/$webapps/$instance
+		cp $rootwarloc/ROOT.war $webapploc/$instance.war && unzip -oq $webapploc/$instance.war -d $webapploc/$instance
 	fi
 
 	# Create a specific DataBase.xml file for this new instance
@@ -1267,7 +1268,7 @@ CreateNewInstance()
 
 	# Copy the new file over the top of the existing file.
 	echo -e "\nCopying the replacement DataBase.xml file into new instance: $instance"
-	cp "$DataBaseXML" "$webapploc"$webapps/$instance/$DataBaseLoc/DataBase.xml
+	cp "$DataBaseXML" $webapploc/$instance/$DataBaseLoc/DataBase.xml
 
 	# Create the instance name and empty log files with an exception for ROOT
 	echo -e "\nCreating log files for new instance: $instance"
@@ -1289,17 +1290,17 @@ CreateNewInstance()
 	echo -e "\nModifying new instance: $instance to point to new log files"
 	if [[ $instance = "ROOT" ]];
 	then	
-		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
 	else
-		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
-		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" "$webapploc"$webapps/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+		sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
 	fi
 
 	# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-	chown -R $user:$user $tomcatloc/webapps/
+	chown -R $user:$user $webapploc/
 
 	# Recalculate memory usage since we've made changes
 	ConfigureMemoryUsage
@@ -1581,7 +1582,7 @@ UpgradeInstance()
 	read -p "Please enter a JSS instance to upgrade (or enter to skip) : " instance
 
 	# Does this name already exist?.
-	webapps=($(find $tomcatloc/webapps/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
+	webapps=($(find $webapploc/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
 	[[ " ${webapps[@]} " =~ " $instance " ]] && found=true || found=false
 
 	if [[ $found = false ]];
@@ -1604,20 +1605,20 @@ UpgradeInstance()
 
 			# Backup the <instance>/WEB-INF/xml/DataBase.xml file
 			echo -e "\nBacking up DataBase.xml of instance: $instance"
-			cp $tomcatloc/webapps/$instance/$DataBaseLoc/DataBase.xml /tmp
+			cp $webapploc/$instance/$DataBaseLoc/DataBase.xml /tmp
 
 			# Delete the tomcat ROOT.war folder
 			echo -e "\nDeleting Tomcat instance: $instance"
-			rm $tomcatloc/webapps/$instance.war
+			rm $webapploc/$instance.war
 			rm -rf $webapploc/$instance
 
 			# Rename, copy and expand the replacement tomcat ROOT.war file
 			echo -e "\nReplacing Tomcat instance: $instance"
-			cp $rootwarloc/ROOT.war $tomcatloc/webapps/$instance.war && unzip -oq $tomcatloc/webapps/$instance.war -d $tomcatloc/webapps/$instance
+			cp $rootwarloc/ROOT.war $webapploc/$instance.war && unzip -oq $webapploc/$instance.war -d $webapploc/$instance
 			
 			# Wait for allow Tomcat to expand the .war file we copied over.
 			echo -e "\nWaiting for .war file to be expanded"
-			while [ ! -d "$tomcatloc/webapps/$instance" ]
+			while [ ! -d "$webapploc/$instance" ]
 			do
 			   echo -e "Awaiting Tomcat to expand instance: $instance"
 			   sleep 3
@@ -1628,21 +1629,21 @@ UpgradeInstance()
 			echo -e "\nModifying new instance: $instance to point to new log files"
 			if [[ $instance = "ROOT" ]];
 			then	
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
 			else
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $tomcatloc/webapps/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/$instance/JAMFChangeManagement.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/$instance/JAMFSoftwareServer.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/$instance/JSSAccess.log@" $webapploc/$instance/WEB-INF/classes/log4j.properties
 			fi
 		
 			# Copy back the DataBase.xml file
 			echo -e "\nCopying back DataBase.xml of instance: $instance"
-			mv -f /tmp/DataBase.xml $tomcatloc/webapps/$instance/$DataBaseLoc
+			mv -f /tmp/DataBase.xml $webapploc/$instance/$DataBaseLoc
 
 			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-			chown -R $user:$user $tomcatloc/webapps/
+			chown -R $user:$user $webapploc/
 
 			# Restart tomcat
 			echo -e "\nRestarting Tomcat service"
@@ -1676,7 +1677,7 @@ UpgradeAllInstances() {
 
 		Y|y)	
 			# Grab an array containing all current JSS instances for processing.
-			webapps=($(find $tomcatloc/webapps/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
+			webapps=($(find $webapploc/* -maxdepth 0 -type d | sed -r 's/^.+\///'))
 		
 			# Stop the tomcat service
 			echo -e "\nStopping Tomcat service.\n"
@@ -1691,16 +1692,16 @@ UpgradeAllInstances() {
 		
 			# Backup the <instance>/WEB-INF/xml/DataBase.xml file
 			echo -e "Backing up DataBase.xml of instance: ${webapps[i]}"
-			mv $tomcatloc/webapps/${webapps[i]}/$DataBaseLoc/DataBase.xml /tmp
+			mv $webapploc/${webapps[i]}/$DataBaseLoc/DataBase.xml /tmp
 
 			# Delete the tomcat ROOT.war folder
 			echo -e "Deleting Tomcat instance: ${webapps[i]}"
-			rm $tomcatloc/webapps/${webapps[i]}.war
-			rm -rf $tomcatloc/webapps/${webapps[i]}
+			rm $webapploc/${webapps[i]}.war
+			rm -rf $webapploc/${webapps[i]}
 
 			# Rename, copy and expand the replacement tomcat ROOT.war file
 			echo -e "Replacing Tomcat instance: ${webapps[i]}"
-			cp $rootwarloc/ROOT.war $tomcatloc/webapps/${webapps[i]}.war && unzip -oq $tomcatloc/webapps/${webapps[i]}.war -d $tomcatloc/webapps/${webapps[i]}
+			cp $rootwarloc/ROOT.war $webapploc/${webapps[i]}.war && unzip -oq $webapploc/${webapps[i]}.war -d $webapploc/${webapps[i]}
 			
 			# Wait for allow Tomcat to expand the .war file we copied over.
 			echo -e "\nWaiting for the .war file to be expanded"
@@ -1714,21 +1715,21 @@ UpgradeAllInstances() {
 			echo -e "\nModifying new instance: $instance to point to new log files"
 			if [[ $instance = "ROOT" ]];
 			then	
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/JAMFChangeManagement.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/JAMFSoftwareServer.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/JSSAccess.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
 			else
-				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/${webapps[i]}/JAMFChangeManagement.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/${webapps[i]}/JAMFSoftwareServer.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
-				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/${webapps[i]}/JSSAccess.log@" $tomcatloc/webapps/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMFCMFILE.File=.*@log4j.appender.JAMFCMFILE.File=$logfiles/${webapps[i]}/JAMFChangeManagement.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JAMF.File=.*@log4j.appender.JAMF.File=$logfiles/${webapps[i]}/JAMFSoftwareServer.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
+				sed -i "s@log4j.appender.JSSACCESSLOG.File=.*@log4j.appender.JSSACCESSLOG.File=$logfiles/${webapps[i]}/JSSAccess.log@" $webapploc/${webapps[i]}/WEB-INF/classes/log4j.properties
 			fi
 
 			# Copy back the DataBase.xml file
 			echo -e "Copying back DataBase.xml of instance: ${webapps[i]}"
-			mv -f /tmp/DataBase.xml $tomcatloc/webapps/${webapps[i]}/$DataBaseLoc/
+			mv -f /tmp/DataBase.xml $webapploc/${webapps[i]}/$DataBaseLoc/
 
 			# Make sure folder ownership is correctly set to Tomcat user or bad things happen!
-			chown -R $user:$user $tomcatloc/webapps/
+			chown -R $user:$user $webapploc/
 
 			# Loop finishes here
 			done
