@@ -3,6 +3,8 @@
 ## The (almost) complete Jamf Pro JSS setup script
 ## http://www.richard-purves.com/?p=136
 
+## Before we start, i'm planning to refactor the code and modularise a lot more functions as it's getting untidy in here. That'll be next big release, just not sure when.
+
 ### Introduction
 
 This is the (almost) complete setup script for JAMF Software's JSS server. It will perform the following tasks :-
