@@ -99,8 +99,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.4"
-currentverdate="19th May 2017"
+currentver="4.5"
+currentverdate="22nd June 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
