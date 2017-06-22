@@ -70,6 +70,8 @@
 #								   - DB check code thanks to Neil Martin: https://soundmacguy.wordpress.com/2017/03/27/jamf-pro-9-98-on-windows-migrating-to-mysql-5-7/
 # Version 4.2 - 9th May 2017       - Fixed LetsEncrypt bug caused by deleting the wrong line in Tomcat server.xml file
 # Version 4.3 - 17th May 2017	   - Fixed code for new instance creation. Some of the variables were pointing to non-existant file paths. I do wonder what I was thinking at the time. Let's see if people read this.
+# Version 4.4 - 19th May 2017	   - Sole change to disable password complexity rules on MySQL 5.7
+# Version 4.5 - 22nd June 2017     - Fixed bug with HTTPS config for tomcat. Was missing a closing bracket!
 
 # Set up variables to be used here
 
@@ -97,8 +99,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.3"
-currentverdate="17th May 2017"
+currentver="4.4"
+currentverdate="19th May 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -782,6 +784,7 @@ InstallMySQL()
 			echo -e "\nChanging MySQL 5.7 root account password\n"						
 			temppw=$( grep 'temporary password' /var/log/mysqld.log | awk '{ print $11 }' )
 			mysql -h$mysqlserveraddress -u$mysqluser -p$temppw --connect-expired-password -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '$mysqlpw';" 2>/dev/null
+			mysql -h$mysqlserveraddress -u$mysqluser -p$mysqlpw -e "uninstall plugin validate_password;" 2>/dev/null
 		else
 			echo -e "\nMySQL 5.7 already present. Proceeding."
 		fi
@@ -1114,7 +1117,7 @@ ConfigureMemoryUsage()
 		sed -i '89i\    \t\tacceptCount="100" scheme="https" secure="true" clientAuth="false"' $server
 		sed -i '90i\    \t\tsslProtocol="TLS" sslEnabledProtocols="TLSv1.2, TLSv1.1, TLSv1"' $server
 		sed -i '91i\    \t\tkeystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
-		sed -i '92i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA"' $server
+		sed -i '92i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA" />' $server
 		sed -i '93i-->' $server
 		
 		echo -e "\nEnabling Tomcat shared executor"
