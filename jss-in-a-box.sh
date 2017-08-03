@@ -72,6 +72,8 @@
 # Version 4.3 - 17th May 2017	   - Fixed code for new instance creation. Some of the variables were pointing to non-existant file paths. I do wonder what I was thinking at the time. Let's see if people read this.
 # Version 4.4 - 19th May 2017	   - Sole change to disable password complexity rules on MySQL 5.7
 # Version 4.5 - 22nd June 2017     - Fixed bug with HTTPS config for tomcat. Was missing a closing bracket!
+# Version 4.6 - 3rd August 2017    - Updated tomcat config due to new jamf security paper: https://resources.jamf.com/documents/white-papers/Securing-Your-Jamf-Server.pdf
+#								   - Corrected very old systemd config bug with LetsEncrypt cert renewal timers.
 
 # Set up variables to be used here
 
@@ -99,8 +101,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.5"
-currentverdate="22nd June 2017"
+currentver="4.6"
+currentverdate="3rd August 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -944,7 +946,7 @@ InstallLetsEncrypt()
 	sed -i '80i-->' $server
 
 	echo -e "\nEnabling Tomcat HTTPS Connector with executor\n"
-	sed -i '95d' $server
+	sed -i '107d' $server
 	sed -i '86d' $server
 	
 	# We're done here. Start 'er up.
@@ -982,8 +984,8 @@ ExecStart="$homefolder"/jss-in-a-box.sh -s'
 	echo "$leservice" > /etc/systemd/system/le-renew.service
 
 	# Files are in place. Start the timer and enable it for system reboots too.
-	systemctl start system-backup.timer
-	systemctl enable system-backup.timer
+	systemctl start le-renew.timer
+	systemctl enable le-renew.timer
 }
 
 UpdateLeSSLKeys()
@@ -1110,15 +1112,27 @@ ConfigureMemoryUsage()
 
 		# Replace HTTPS connector settings
 		sed -i '84i<!--' $server
-		sed -i '85i\    \<Connector' $server
-		sed -i '86i\    \t\tport="8443" SSLEnabled="true" maxHttpHeaderSize="8192"' $server
-		sed -i '87i\    \t\tmaxPostSize="-1" maxThreads="150" minSpareThreads="25"' $server
-		sed -i '88i\    \t\tmaxSpareThreads="75" enableLookups="false" disableUploadTimeout="true"' $server
-		sed -i '89i\    \t\tacceptCount="100" scheme="https" secure="true" clientAuth="false"' $server
-		sed -i '90i\    \t\tsslProtocol="TLS" sslEnabledProtocols="TLSv1.2, TLSv1.1, TLSv1"' $server
-		sed -i '91i\    \t\tkeystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
-		sed -i '92i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA" />' $server
-		sed -i '93i-->' $server
+		sed -i '85i\    \<Connector URIEncoding="UTF-8" executor="tomcatThreadPool"' $server
+		sed -i '86i\    \t\tprotocol="HTTP/1.1" connectionTimeout="20000" maxPostSize="8388608"' $server
+		sed -i '87i\    \t\tport="8443" SSLEnabled="true" maxHttpHeaderSize="8192"' $server
+		sed -i '88i\    \t\tmaxPostSize="-1" maxThreads="150" minSpareThreads="25"' $server
+		sed -i '89i\    \t\tmaxSpareThreads="75" enableLookups="false" disableUploadTimeout="true"' $server
+		sed -i '90i\    \t\tacceptCount="100" scheme="https" secure="true" clientAuth="false"' $server
+		sed -i '91i\    \t\tsslProtocol="TLSv1.2" sslEnabledProtocols="TLSv1.2,TLSv1.1,TLSv1"' $server
+		sed -i '92i\    \t\tkeystoreFile="'"$sslkeystorepath/keystore.jks"'" keystorePass="'"$sslkeypass"'" keyAlias="tomcat"' $server
+		sed -i '93i\    \t\tciphers="TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,' $server
+		sed -i '94i\    \t\tTLS_ECDH_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384,' $server
+		sed -i '95i\    \t\tTLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,' $server
+		sed -i '96i\    \t\tTLS_ECDH_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256,' $server
+		sed -i '97i\    \t\tTLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,' $server
+		sed -i '98i\    \t\tTLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,' $server
+		sed -i '99i\    \t\tTLS_ECDH_RSA_WITH_AES_256_CBC_SHA384,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384,' $server
+		sed -i '100i\    \t\tTLS_ECDH_RSA_WITH_AES_256_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,' $server
+		sed -i '101i\    \t\tTLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,' $server
+		sed -i '102i\    \t\tTLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,' $server
+		sed -i '103i\    \t\tTLS_ECDH_RSA_WITH_AES_128_CBC_SHA256,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256,' $server
+		sed -i '104i\    \t\tTLS_ECDH_RSA_WITH_AES_128_CBC_SHA,TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA" />' $server
+		sed -i '105i-->' $server
 		
 		echo -e "\nEnabling Tomcat shared executor"
 		sed -i '59d' $server
