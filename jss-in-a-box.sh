@@ -74,6 +74,7 @@
 # Version 4.5 - 22nd June 2017     - Fixed bug with HTTPS config for tomcat. Was missing a closing bracket!
 # Version 4.6 - 3rd August 2017    - Updated tomcat config due to new jamf security paper: https://resources.jamf.com/documents/white-papers/Securing-Your-Jamf-Server.pdf
 #								   - Corrected very old systemd config bug with LetsEncrypt cert renewal timers.
+# Version 4.7 - 7th August 2017	   - It was pointed out to me that if Tomcat crashes, it would not auto restart. Fixed SystemD config to compensate. Also fixed shutdown and some RedHat java bugs.
 
 # Set up variables to be used here
 
@@ -101,8 +102,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.6"
-currentverdate="3rd August 2017"
+currentver="4.7"
+currentverdate="7th August 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -592,7 +593,7 @@ InstallJava()
 			rm $rootwarloc/oracle-java.rpm
 			
 			echo -e "\nSetting JAVA_HOME to use Oracle Java 8.\n"
-			echo "JAVA_HOME=/usr/java/default/bin/java" >> /etc/environment
+			echo "JAVA_HOME=/usr/java/default/" >> /etc/environment
 				
 			echo -e "\nInstalling Java Cryptography Extension 8\n"
 			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
@@ -650,10 +651,13 @@ After=syslog.target network.target
 Type=forking
 
 ExecStart=/opt/tomcat8/bin/startup.sh
-ExecStop=/bin/kill -15 $MAINPID
+ExecStop=/opt/tomcat8/bin/shutdown.sh
 
 User=tomcat
 Group=tomcat
+
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
