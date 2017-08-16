@@ -75,6 +75,7 @@
 # Version 4.6 - 3rd August 2017    - Updated tomcat config due to new jamf security paper: https://resources.jamf.com/documents/white-papers/Securing-Your-Jamf-Server.pdf
 #								   - Corrected very old systemd config bug with LetsEncrypt cert renewal timers.
 # Version 4.7 - 7th August 2017	   - It was pointed out to me that if Tomcat crashes, it would not auto restart. Fixed SystemD config to compensate. Also fixed shutdown and some RedHat java bugs.
+# Version 4.8 - 16th August 2017   - Seems deleting instances wasn't cleaning out the Tomcat work folders properly. Fixed.
 
 # Set up variables to be used here
 
@@ -102,8 +103,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.7"
-currentverdate="7th August 2017"
+currentver="4.8"
+currentverdate="16th August 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -111,6 +112,7 @@ export logfiles="/var/log/JSS"								# Location of ROOT and instance JSS log fi
 
 export tomcatloc="/opt/tomcat8"								# Tomcat's installation path
 export webapploc="$tomcatloc/webapps"						# Tomcat web application install path
+export cacheloc="$tomcatloc/work/Catalina/localhost"						# Tomcat's webapp cache folder
 export user="tomcat"										# User and Group used for tomcat
 export sslkeystorepath="$tomcatloc/keystore"				# Keystore path
 export server="$tomcatloc/conf/server.xml"					# Tomcat server.xml path
@@ -1392,7 +1394,7 @@ DeleteInstance()
 		echo -e "\nDeleting Tomcat cache folder for instance: $instance"
 		if [[ $instance = "ROOT" ]];
 		then
-			rm -rf $cacheloc/_ 2>/dev/null
+			rm -rf $cacheloc/ROOT 2>/dev/null
 		else
 			rm -rf $cacheloc/$instance 2>/dev/null
 		fi
