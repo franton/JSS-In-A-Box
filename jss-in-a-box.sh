@@ -1394,6 +1394,7 @@ DeleteInstance()
 		echo -e "\nDeleting Tomcat cache folder for instance: $instance"
 		if [[ $instance = "ROOT" ]];
 		then
+			rm -rf $cacheloc/_ 2>/dev/null
 			rm -rf $cacheloc/ROOT 2>/dev/null
 		else
 			rm -rf $cacheloc/$instance 2>/dev/null
