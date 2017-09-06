@@ -76,6 +76,7 @@
 #								   - Corrected very old systemd config bug with LetsEncrypt cert renewal timers.
 # Version 4.7 - 7th August 2017	   - It was pointed out to me that if Tomcat crashes, it would not auto restart. Fixed SystemD config to compensate. Also fixed shutdown and some RedHat java bugs.
 # Version 4.8 - 16th August 2017   - Seems deleting instances wasn't cleaning out the Tomcat work folders properly. Fixed.
+# Version 4.9 - 6th September 2017 - MySQL 5.7 has major changes to it's my.cnf file, so i've reworked the configuration code in that area.
 
 # Set up variables to be used here
 
@@ -117,7 +118,7 @@ export user="tomcat"										# User and Group used for tomcat
 export sslkeystorepath="$tomcatloc/keystore"				# Keystore path
 export server="$tomcatloc/conf/server.xml"					# Tomcat server.xml path
 
-export ubmycnfloc="/etc/mysql/my.cnf"						# MySQL's configuration file path(s)
+export ubmycnfloc="/etc/mysql/mysql.conf.d/mysqld.cnf"		# MySQL 5.7 configuration file path(s)
 export rhmycnfloc="/etc/my.cnf"
 
 export DataBaseLoc="WEB-INF/xml"							# DataBase.xml location inside the JSS webapp
@@ -1169,18 +1170,23 @@ ConfigureMemoryUsage()
 	sed -i 's/-Xmx.*/-Xmx'"$memtotal"'m"/' $tomcatloc/bin/setenv.sh
 	sed -i 's/-XX:MaxMetaspaceSize=.*/-XX:MaxMetaspaceSize='"$memtotal"'m"/' $tomcatloc/bin/setenv.sh
 
+	# MySQL
 	if [[ $OS = "Ubuntu" ]];
 	then
-		# MySQL
 		echo -e "\nConfiguring MySQL max connections to $MySQLMaxConnections"
-		sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $ubmycnfloc		
+		grep -q 'max_connections' $ubmycnfloc && sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $ubmycnfloc || echo "max_connections = $MySQLMaxConnections" >> $ubmycnfloc
+		
+		echo -e "\nConfiguring MySQL max packet size to 16M"
+		grep -q 'max_allowed_packet' $ubmycnfloc && sed -i 's/max_allowed_packet.*/max_allowed_packet = 16777216/' $ubmycnfloc || echo "max_allowed_packet = 16777216" >> $ubmycnfloc
 	fi
 
 	if [[ $OS = "RedHat" ]];
 	then	
-		# MySQL	
 		echo -e "\nConfiguring MySQL max connections to: $MySQLMaxConnections"
-		sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $rhmycnfloc
+		grep -q 'max_connections' $rhmycnfloc && sed -i 's/max_connections.*/max_connections = '$MySQLMaxConnections'/' $rhmycnfloc || echo "max_connections = $MySQLMaxConnections" >> $rhmycnfloc
+		
+		echo -e "\nConfiguring MySQL max packet size to 16M"
+		grep -q 'max_allowed_packet' $rhmycnfloc && sed -i 's/max_allowed_packet.*/max_allowed_packet = 16777216/' $rhmycnfloc || echo "max_allowed_packet = 16777216" >> $rhmycnfloc
 	fi
 	
 	# Time to restart MySQL and Tomcat
