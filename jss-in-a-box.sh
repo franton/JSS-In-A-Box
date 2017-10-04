@@ -77,6 +77,7 @@
 # Version 4.7 - 7th August 2017	   - It was pointed out to me that if Tomcat crashes, it would not auto restart. Fixed SystemD config to compensate. Also fixed shutdown and some RedHat java bugs.
 # Version 4.8 - 16th August 2017   - Seems deleting instances wasn't cleaning out the Tomcat work folders properly. Fixed.
 # Version 4.9 - 6th September 2017 - MySQL 5.7 has major changes to it's my.cnf file, so i've reworked the configuration code in that area.
+# Version 4.91- 4th October 2017   - Fixed tomcat version finding bug reported by Mark Smith.
 
 # Set up variables to be used here
 
@@ -104,8 +105,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.9"
-currentverdate="6th September 2017"
+currentver="4.91"
+currentverdate="4th October 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -671,7 +672,7 @@ Alias=tomcat.service'
 
 		# Find latest tomcat version
 		echo -e "\nFinding latest Tomcat 8 version"
-		version=$( curl -s http://tomcat.apache.org/download-80.cgi | grep "<h3 id=\"8.0" | head -n1 | awk '{gsub("<[^>]*>", "")}1' )
+		version=$( curl -s http://tomcat.apache.org/download-80.cgi | grep "<h3 id=\"8.0" | head -n1 | awk '{gsub("<[^>]*>", "")}1' | tr -d ' \t\n\r\f' )
 		echo -e "\nVersion: $version"
 
 		# Work out proper download path
