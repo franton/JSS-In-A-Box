@@ -78,6 +78,7 @@
 # Version 4.8 - 16th August 2017   - Seems deleting instances wasn't cleaning out the Tomcat work folders properly. Fixed.
 # Version 4.9 - 6th September 2017 - MySQL 5.7 has major changes to it's my.cnf file, so i've reworked the configuration code in that area.
 # Version 4.91- 4th October 2017   - Fixed tomcat version finding bug reported by Mark Smith.
+# Version 5.0 - 15th December 2017 - Changed Java Cryptography installation. Now it's just a preference change rather than a file replacement.
 
 # Set up variables to be used here
 
@@ -564,12 +565,8 @@ InstallJava()
 			echo -e "\nSetting JAVA_HOME to use Oracle Java 8.\n"
 			echo "JAVA_HOME=/usr/lib/jvm/java-8-oracle/jre/bin/java " >> /etc/environment
 	
-			echo -e "\nInstalling Java Cryptography Extension 8\n"
-			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
-			unzip $rootwarloc/jce_policy-8.zip
-			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/lib/jvm/java-8-oracle/jre/lib/security
-			rm $rootwarloc/jce_policy-8.zip
-			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
+			echo -e "\nEnabling Java Cryptography Extensions"
+			sed -i 's/#crypto.policy=unlimited/crypto.policy=unlimited/' /etc/java-8-oracle/security/java.security
 		else
 			echo -e "\nOracle Java 8 already installed. Proceeding."
 		fi
@@ -599,12 +596,8 @@ InstallJava()
 			echo -e "\nSetting JAVA_HOME to use Oracle Java 8.\n"
 			echo "JAVA_HOME=/usr/java/default/" >> /etc/environment
 				
-			echo -e "\nInstalling Java Cryptography Extension 8\n"
-			curl -v -j -k -L -H "Cookie:oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jce/8/jce_policy-8.zip  > $rootwarloc/jce_policy-8.zip
-			unzip $rootwarloc/jce_policy-8.zip
-			cp $rootwarloc/UnlimitedJCEPolicyJDK8/* /usr/java/default/lib/security
-			rm $rootwarloc/jce_policy-8.zip
-			rm -rf $rootwarloc/UnlimitedJCEPolicyJDK8
+			echo -e "\nEnabling Java Cryptography Extensions\n"
+			sed -i 's/#crypto.policy=unlimited/crypto.policy=unlimited/' /usr/java/default/lib/security/java.security
 		else
 			echo -e "\nOracle 8 already installed. Proceeding."
 		fi
