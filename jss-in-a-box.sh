@@ -79,6 +79,7 @@
 # Version 4.9 - 6th September 2017 - MySQL 5.7 has major changes to it's my.cnf file, so i've reworked the configuration code in that area.
 # Version 4.91- 4th October 2017   - Fixed tomcat version finding bug reported by Mark Smith.
 # Version 5.0 - 15th December 2017 - Changed Java Cryptography installation. Now it's just a preference change rather than a file replacement.
+# Version 5.1 - 20th December 2017 - Last change for 2017! Java exiting returns a 143 exit code which systemd doesn't like. Well it does now!
 
 # Set up variables to be used here
 
@@ -106,8 +107,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="4.91"
-currentverdate="4th October 2017"
+currentver="5.1"
+currentverdate="20th December 2017"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -658,7 +659,10 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-Alias=tomcat.service'
+Alias=tomcat.service
+
+[Service]
+SuccessExitStatus=143'
 
 		echo "$systemd" > /lib/systemd/system/tomcat.service
 		systemctl daemon-reload
