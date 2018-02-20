@@ -80,6 +80,7 @@
 # Version 4.91- 4th October 2017   - Fixed tomcat version finding bug reported by Mark Smith.
 # Version 5.0 - 15th December 2017 - Changed Java Cryptography installation. Now it's just a preference change rather than a file replacement.
 # Version 5.1 - 20th December 2017 - Last change for 2017! Java exiting returns a 143 exit code which systemd doesn't like. Well it does now!
+# Version 5.2 - 20th February 2018 - Silly bug with upgrade all that meant it never finished.
 
 # Set up variables to be used here
 
@@ -107,8 +108,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="5.1"
-currentverdate="20th December 2017"
+currentver="5.2"
+currentverdate="20th February 2018"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -1733,7 +1734,7 @@ UpgradeAllInstances() {
 			
 			# Wait for allow Tomcat to expand the .war file we copied over.
 			echo -e "\nWaiting for the .war file to be expanded"
-			while [ ! -d '$rootwarloc/$instance' ]
+			while [ ! -d '$webapploc/${webapps[i]}' ]
 			do
 			   sleep 1
 			done
