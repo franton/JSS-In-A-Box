@@ -81,6 +81,7 @@
 # Version 5.0 - 15th December 2017 - Changed Java Cryptography installation. Now it's just a preference change rather than a file replacement.
 # Version 5.1 - 20th December 2017 - Last change for 2017! Java exiting returns a 143 exit code which systemd doesn't like. Well it does now!
 # Version 5.2 - 20th February 2018 - Silly bug with upgrade all that meant it never finished.
+# Version 5.3 - 28th February 2018 - Removed extra line from Tomcat connector configuration.
 
 # Set up variables to be used here
 
@@ -108,8 +109,8 @@ export dbpass="Changeit1!"									# Database password for JSS. Default is "chan
 # These variables should not be tampered with or script functionality will be affected!
 
 currentdir=$( pwd )
-currentver="5.2"
-currentverdate="20th February 2018"
+currentver="5.3"
+currentverdate="28th February 2018"
 
 export homefolder="/home/$useract"							# Home folder base path
 export rootwarloc="$homefolder"								# Location of where you put the ROOT.war file
@@ -1119,7 +1120,7 @@ ConfigureMemoryUsage()
 		# Replace HTTPS connector settings
 		sed -i '84i<!--' $server
 		sed -i '85i\    \<Connector URIEncoding="UTF-8" executor="tomcatThreadPool"' $server
-		sed -i '86i\    \t\tprotocol="HTTP/1.1" connectionTimeout="20000" maxPostSize="8388608"' $server
+		sed -i '86i\    \t\tprotocol="HTTP/1.1" connectionTimeout="20000"' $server
 		sed -i '87i\    \t\tport="8443" SSLEnabled="true" maxHttpHeaderSize="8192"' $server
 		sed -i '88i\    \t\tmaxPostSize="-1" maxThreads="150" minSpareThreads="25"' $server
 		sed -i '89i\    \t\tmaxSpareThreads="75" enableLookups="false" disableUploadTimeout="true"' $server
