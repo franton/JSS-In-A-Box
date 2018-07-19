@@ -85,7 +85,7 @@
 
 # Set up variables to be used here
 
-# These variables are user modifiable. Don't forget to configure firewall settings from Line 737!
+# These variables are user modifiable. Don't forget to configure firewall settings from Line 808!
 
 export useract="richardpurves"								# Server admin username. Used for home location.
 
