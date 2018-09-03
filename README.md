@@ -3,6 +3,14 @@
 ## The (almost) complete Jamf Pro JSS setup script
 ## http://www.richard-purves.com/?p=136
 
+### IMPORTANT NOTE
+
+## This project was officially retired on September 3rd 2018
+## There is no more support and is kept here for historical reasons.
+# See https://www.richard-purves.com/2018/09/03/wither-jss-in-a-box/
+
+--
+
 ## Before we start, i'm planning to refactor the code and modularise a lot more functions as it's getting untidy in here. That'll be next big release, just not sure when.
 
 ### Introduction
